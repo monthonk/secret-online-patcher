@@ -1,7 +1,7 @@
 use clap::Parser;
 use secret_online_patcher::{
     cli::{Args, Operation},
-    storage::patcher_db::PatcherDatabase,
+    storage::{application_data::Application, patcher_db::PatcherDatabase},
 };
 use sqlx::SqlitePool;
 use std::path::Path;
@@ -29,8 +29,18 @@ async fn main() {
             secret_online_patcher::cli::list_apps(&patcher_db).await;
         }
         Operation::AddApp => {
+            if args.app_name.is_none() || args.app_version.is_none() || args.app_path.is_none() {
+                eprintln!("Error: --app-name, --app-version, and --app-path are required for add-app operation.");
+                return;
+            }
             // Call the function to add an app
-            secret_online_patcher::cli::add_app();
+            let app = Application {
+                id: 0, // ID will be auto-generated
+                name: args.app_name.clone().unwrap(),
+                version: args.app_version.clone().unwrap(),
+                hash_code: args.app_path.clone().unwrap(),
+            };
+            secret_online_patcher::cli::add_app(app, &patcher_db).await;
         }
     }
 }

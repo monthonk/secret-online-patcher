@@ -29,10 +29,11 @@ impl PatcherDatabase {
             INSERT INTO applications (name, version, hash_code)
             VALUES (?, ?, ?);
         ";
-        self.db_pool
+        let _result = self
+            .db_pool
             .execute(sqlx::query(query).bind(name).bind(version).bind(hash_code))
             .await
-            .unwrap();
+            .inspect_err(|e| println!("Error adding application: {}", e));
     }
 
     pub async fn list_applications(&self) -> Vec<Application> {
@@ -43,6 +44,7 @@ impl PatcherDatabase {
         sqlx::query_as(query)
             .fetch_all(&self.db_pool)
             .await
-            .unwrap()
+            .inspect_err(|e| println!("Error listing applications: {e}"))
+            .unwrap_or_default()
     }
 }
