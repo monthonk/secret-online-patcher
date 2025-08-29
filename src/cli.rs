@@ -1,5 +1,7 @@
 use clap::{Parser, ValueEnum};
 
+use crate::storage::patcher_db::PatcherDatabase;
+
 #[derive(Parser, Debug)]
 pub struct Args {
     /// Operation to perform
@@ -14,9 +16,24 @@ pub enum Operation {
     AddApp,
 }
 
-pub fn list_apps() {
+pub async fn list_apps(db: &PatcherDatabase) {
+    // Mock data
+    let mock_apps = vec![
+        ("App1", "1.0.0", "hashcode1"),
+        ("App2", "2.3.4", "hashcode2"),
+    ];
+    for app in mock_apps {
+        db.add_application(app.0, app.1, app.2).await;
+    }
+
     // Implementation for listing apps
-    println!("Listing applications...");
+    let apps = db.list_applications().await;
+    for app in apps {
+        println!(
+            "ID: {}, Name: {}, Version: {}, Hash: {}",
+            app.id, app.name, app.version, app.hash_code
+        );
+    }
 }
 
 pub fn add_app() {
