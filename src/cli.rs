@@ -70,12 +70,12 @@ pub async fn add_app(
     }
 
     // Sort the entries alphabetically by path
-    entries.sort_by(|a, b| a.cmp(b));
+    entries.sort();
 
     let mut combined_hash = Sha256::new();
     // Print the sorted paths
     for entry_path in entries {
-        let hasher = FileHasher::new();
+        let hasher = FileHasher::default();
         let hex_hash = hasher.file_hash(&entry_path)?;
         println!("hash: {}, file: {}", hex_hash, entry_path.display());
         combined_hash.update(hex_hash.as_bytes());
@@ -85,7 +85,7 @@ pub async fn add_app(
     println!("Application hash is {}", app_hash);
 
     // Implementation for adding an app
-    db.add_application(name, version, &app_hash, &path).await;
+    db.add_application(name, version, &app_hash, path).await;
 
     Ok(())
 }

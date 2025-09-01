@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::Path;
 
 use sqlx::{Executor, SqlitePool};
 
@@ -34,7 +34,7 @@ impl PatcherDatabase {
         name: &str,
         version: &str,
         hash_code: &str,
-        install_path: &PathBuf,
+        install_path: &Path,
     ) {
         let install_path = install_path.to_string_lossy();
         let query = "

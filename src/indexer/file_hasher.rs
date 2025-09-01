@@ -2,17 +2,12 @@ use std::{fs::File, io::Read, path::PathBuf};
 
 use sha2::{Digest, Sha256};
 
+#[derive(Default)]
 pub struct FileHasher {
     hasher: Sha256,
 }
 
 impl FileHasher {
-    pub fn new() -> Self {
-        Self {
-            hasher: Sha256::new(),
-        }
-    }
-
     pub fn file_hash(mut self, file_path: &PathBuf) -> Result<String, anyhow::Error> {
         let mut file =
             File::open(file_path).map_err(|e| anyhow::anyhow!("Error opening file: {}", e))?;
