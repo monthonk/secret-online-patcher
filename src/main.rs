@@ -1,7 +1,7 @@
 use clap::Parser;
 use secret_online_patcher::{
-    cli::{Args, Operation},
-    storage::{application_data::Application, patcher_db::PatcherDatabase},
+    cli::{self, Args, Operation},
+    storage::patcher_db::PatcherDatabase,
 };
 use sqlx::SqlitePool;
 use std::path::Path;
@@ -26,21 +26,34 @@ async fn main() {
     match args.op {
         Operation::List => {
             // Call the function to list applications
-            secret_online_patcher::cli::list_apps(&patcher_db).await;
+            cli::list_apps(&patcher_db).await;
         }
         Operation::AddApp => {
             if args.app_name.is_none() || args.app_version.is_none() || args.app_path.is_none() {
-                eprintln!("Error: --app-name, --app-version, and --app-path are required for add-app operation.");
+                eprintln!(
+                    "Error: --app-name, --app-version, and --app-path are required for add-app operation."
+                );
                 return;
             }
             // Call the function to add an app
-            let app = Application {
-                id: 0, // ID will be auto-generated
-                name: args.app_name.clone().unwrap(),
-                version: args.app_version.clone().unwrap(),
-                hash_code: args.app_path.clone().unwrap(),
-            };
-            secret_online_patcher::cli::add_app(app, &patcher_db).await;
+            if let Err(e) = cli::add_app(
+                args.app_name.as_ref().unwrap(),
+                args.app_version.as_ref().unwrap(),
+                args.app_path.as_ref().unwrap(),
+                &patcher_db,
+            )
+            .await
+            {
+                eprintln!("Error adding application: {}", e);
+            }
+        }
+        Operation::RemoveApp => {
+            if args.app_name.is_none() {
+                eprintln!("Error: --app-name is required for remove-app operation.");
+                return;
+            }
+
+            cli::remove_app(args.app_name.as_ref().unwrap(), &patcher_db).await;
         }
     }
 }

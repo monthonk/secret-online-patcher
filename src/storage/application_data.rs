@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use sqlx::{FromRow, Row, sqlite::SqliteRow};
 
 // Store application information
@@ -6,6 +8,7 @@ pub struct Application {
     pub name: String,
     pub version: String,
     pub hash_code: String,
+    pub install_path: PathBuf,
 }
 
 impl FromRow<'_, SqliteRow> for Application {
@@ -15,6 +18,7 @@ impl FromRow<'_, SqliteRow> for Application {
             name: row.try_get("name")?,
             version: row.try_get("version")?,
             hash_code: row.try_get("hash_code")?,
+            install_path: PathBuf::from(row.try_get::<String, _>("install_path")?),
         })
     }
 }

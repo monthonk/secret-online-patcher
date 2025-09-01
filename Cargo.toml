@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+anyhow = "1.0.99"
+base16ct = { version = "0.3.0", features = ["alloc"] }
 clap = { version = "4.5.46", features = ["derive"] }
+sha2 = "0.10.9"
 sqlx = { version = "0.8.6", features = ["runtime-tokio", "sqlite"] }
 tokio = { version = "1.47.1", features = ["full"] }
