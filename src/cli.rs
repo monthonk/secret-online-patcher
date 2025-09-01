@@ -76,7 +76,7 @@ pub async fn add_app(
     // Print the sorted paths
     for entry_path in entries {
         let hasher = FileHasher::new();
-        let hex_hash = hasher.file_hash(&entry_path);
+        let hex_hash = hasher.file_hash(&entry_path)?;
         println!("hash: {}, file: {}", hex_hash, entry_path.display());
         combined_hash.update(hex_hash.as_bytes());
     }

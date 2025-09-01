@@ -13,8 +13,17 @@ impl FileHasher {
         }
     }
 
-    pub fn file_hash(mut self, file_path: &PathBuf) -> String {
-        let mut file = File::open(file_path).unwrap();
+    pub fn file_hash(mut self, file_path: &PathBuf) -> Result<String, anyhow::Error> {
+        let mut file =
+            File::open(file_path).map_err(|e| anyhow::anyhow!("Error opening file: {}", e))?;
+        // TODO: Support hashing directories with recursive file hashing
+        if file
+            .metadata()
+            .map_err(|e| anyhow::anyhow!("Error reading file metadata: {}", e))?
+            .is_dir()
+        {
+            return Err(anyhow::anyhow!("Provided path is a directory, not a file"));
+        }
         let mut buffer: [u8; 4096] = [0; 4096]; // Read in 4KB chunks
 
         while let Ok(bytes_read) = file.read(&mut buffer) {
@@ -27,6 +36,7 @@ impl FileHasher {
         }
         let hash = self.hasher.finalize();
         // Encode the hash as a hexadecimal string
-        base16ct::lower::encode_string(&hash)
+        let hex_hash = base16ct::lower::encode_string(&hash);
+        Ok(hex_hash)
     }
 }
