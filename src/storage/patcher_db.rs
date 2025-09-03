@@ -66,6 +66,20 @@ impl PatcherDatabase {
             .inspect_err(|e| println!("Error removing application: {}", e));
     }
 
+    pub async fn get_application(&self, name: &str) -> Option<Application> {
+        let query = "
+            SELECT id, name, version, hash_code, install_path
+            FROM applications
+            WHERE name = ?;
+        ";
+        sqlx::query_as(query)
+            .bind(name)
+            .fetch_one(&self.db_pool)
+            .await
+            .inspect_err(|e| println!("Error fetching application: {}", e))
+            .ok()
+    }
+
     pub async fn list_applications(&self) -> Vec<Application> {
         let query = "
             SELECT id, name, version, hash_code, install_path

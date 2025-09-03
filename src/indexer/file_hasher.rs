@@ -11,7 +11,6 @@ impl FileHasher {
     pub fn file_hash(mut self, file_path: &PathBuf) -> Result<String, anyhow::Error> {
         let mut file =
             File::open(file_path).map_err(|e| anyhow::anyhow!("Error opening file: {}", e))?;
-        // TODO: Support hashing directories with recursive file hashing
         if file
             .metadata()
             .map_err(|e| anyhow::anyhow!("Error reading file metadata: {}", e))?
@@ -26,7 +25,6 @@ impl FileHasher {
             if bytes_read == 0 {
                 break;
             }
-            // self.hasher.update(&buffer[..bytes_read]);
             self.hasher.update(&buffer[..bytes_read]);
         }
         let hash = self.hasher.finalize();

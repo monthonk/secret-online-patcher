@@ -55,5 +55,15 @@ async fn main() {
 
             cli::remove_app(args.app_name.as_ref().unwrap(), &patcher_db).await;
         }
+        Operation::Check => {
+            if args.app_name.is_none() {
+                eprintln!("Error: --app-name is required for check operation.");
+                return;
+            }
+            // Call the function to check an app
+            if let Err(e) = cli::check_app(args.app_name.as_ref().unwrap(), &patcher_db).await {
+                eprintln!("Error checking application: {}", e);
+            }
+        }
     }
 }

@@ -1,10 +1,9 @@
-use std::{fs, path::PathBuf};
+use std::path::PathBuf;
 
 use anyhow::anyhow;
 use clap::{Parser, ValueEnum};
-use sha2::{Digest, Sha256};
 
-use crate::{indexer::file_hasher::FileHasher, storage::patcher_db::PatcherDatabase};
+use crate::{indexer::dir_hasher::DirHasher, storage::patcher_db::PatcherDatabase};
 
 #[derive(Parser, Debug)]
 pub struct Args {
@@ -38,6 +37,7 @@ pub enum Operation {
     List,
     AddApp,
     RemoveApp,
+    Check,
 }
 
 pub async fn list_apps(db: &PatcherDatabase) {
@@ -60,28 +60,8 @@ pub async fn add_app(
     // Compute hash code for the app
     // Hash code is the CRC32 hash of the hash from all files in the app directory
     // order by their names.
-    let mut entries = Vec::new();
-    for entry in fs::read_dir(path)? {
-        if entry.is_err() {
-            return Err(anyhow!("Error reading directory"));
-        }
-        let entry = entry.unwrap();
-        entries.push(entry.path());
-    }
-
-    // Sort the entries alphabetically by path
-    entries.sort();
-
-    let mut combined_hash = Sha256::new();
-    // Print the sorted paths
-    for entry_path in entries {
-        let hasher = FileHasher::default();
-        let hex_hash = hasher.file_hash(&entry_path)?;
-        println!("hash: {}, file: {}", hex_hash, entry_path.display());
-        combined_hash.update(hex_hash.as_bytes());
-    }
-    let combined_hash = combined_hash.finalize();
-    let app_hash = base16ct::lower::encode_string(&combined_hash);
+    let hasher = DirHasher::default();
+    let app_hash = hasher.dir_hash(path)?;
     println!("Application hash is {}", app_hash);
 
     // Implementation for adding an app
@@ -92,4 +72,28 @@ pub async fn add_app(
 
 pub async fn remove_app(name: &str, db: &PatcherDatabase) {
     db.remove_application(name).await;
+}
+
+pub async fn check_app(name: &str, db: &PatcherDatabase) -> Result<(), anyhow::Error> {
+    let app = db.get_application(name).await;
+    match app {
+        Some(app) => {
+            println!(
+                "ID: {}, Name: {}, Version: {}, Hash: {}",
+                app.id, app.name, app.version, app.hash_code
+            );
+            let hasher = DirHasher::default();
+            let new_hash = hasher.dir_hash(&PathBuf::from(&app.install_path))?;
+            if new_hash == app.hash_code {
+                println!("No changes detected for application {}", app.name);
+            } else {
+                println!("Changes detected for application {}!", app.name);
+                println!("New hash: {}", new_hash);
+            }
+        }
+        None => {
+            return Err(anyhow!("Application not found"));
+        }
+    }
+    Ok(())
 }
