@@ -54,6 +54,19 @@ impl PatcherDatabase {
             .inspect_err(|e| println!("Error adding application: {}", e));
     }
 
+    pub async fn update_application(&self, id: &i64, version: &str, hash_code: &str) {
+        let query = "
+            UPDATE applications
+            SET version = ?, hash_code = ?
+            WHERE id = ?;
+        ";
+        let _result = self
+            .db_pool
+            .execute(sqlx::query(query).bind(version).bind(hash_code).bind(id))
+            .await
+            .inspect_err(|e| println!("Error updating application: {}", e));
+    }
+
     pub async fn remove_application(&self, name: &str) {
         let query = "
             DELETE FROM applications

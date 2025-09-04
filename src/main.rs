@@ -65,5 +65,17 @@ async fn main() {
                 eprintln!("Error checking application: {}", e);
             }
         }
+        Operation::Update => {
+            if args.app_name.is_none() || args.app_version.is_none() {
+                eprintln!("Error: --app-name and --app-version are required for update operation.");
+                return;
+            }
+
+            let app_name = args.app_name.as_ref().unwrap();
+            let new_version = args.app_version.as_ref().unwrap();
+            if let Err(e) = cli::update_app(app_name, new_version, &patcher_db).await {
+                eprintln!("Error updating application: {}", e);
+            }
+        }
     }
 }

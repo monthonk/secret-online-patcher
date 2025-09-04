@@ -3,7 +3,10 @@ use std::path::PathBuf;
 use anyhow::anyhow;
 use clap::{Parser, ValueEnum};
 
-use crate::{indexer::dir_hasher::DirHasher, storage::patcher_db::PatcherDatabase};
+use crate::{
+    indexer::dir_hasher::DirHasher,
+    storage::{application_data::Application, patcher_db::PatcherDatabase},
+};
 
 #[derive(Parser, Debug)]
 pub struct Args {
@@ -38,6 +41,7 @@ pub enum Operation {
     AddApp,
     RemoveApp,
     Check,
+    Update,
 }
 
 pub async fn list_apps(db: &PatcherDatabase) {
@@ -89,6 +93,49 @@ pub async fn check_app(name: &str, db: &PatcherDatabase) -> Result<(), anyhow::E
             } else {
                 println!("Changes detected for application {}!", app.name);
                 println!("New hash: {}", new_hash);
+            }
+        }
+        None => {
+            return Err(anyhow!("Application not found"));
+        }
+    }
+    Ok(())
+}
+
+pub async fn update_app(
+    name: &str,
+    version: &str,
+    db: &PatcherDatabase,
+) -> Result<(), anyhow::Error> {
+    let app = db.get_application(name).await;
+    match app {
+        Some(app) => {
+            println!(
+                "ID: {}, Name: {}, Current Version: {}, Hash: {}",
+                app.id, app.name, app.version, app.hash_code
+            );
+            let hasher = DirHasher::default();
+            let new_hash = hasher.dir_hash(&PathBuf::from(&app.install_path))?;
+            if new_hash == app.hash_code {
+                println!("No changes detected for application {}", app.name);
+                println!("Skip updating...");
+            } else {
+                println!("Changes detected for application {}!", app.name);
+                println!("New hash: {}", new_hash);
+                println!("Updating version to {}...", version);
+                let new_version = Application {
+                    id: app.id,
+                    name: app.name.clone(),
+                    version: version.to_string(),
+                    install_path: app.install_path.clone(),
+                    hash_code: new_hash,
+                };
+                db.update_application(
+                    &new_version.id,
+                    &new_version.version,
+                    &new_version.hash_code,
+                )
+                .await;
             }
         }
         None => {
