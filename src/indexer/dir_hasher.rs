@@ -20,7 +20,7 @@ impl DirHasher {
         }
     }
 
-    pub fn dir_hash(mut self, file_path: &PathBuf) -> Result<String, anyhow::Error> {
+    pub async fn dir_hash(mut self, file_path: &PathBuf) -> Result<String, anyhow::Error> {
         let mut entries = Vec::new();
         for entry in fs::read_dir(file_path)? {
             if entry.is_err() {
@@ -39,17 +39,17 @@ impl DirHasher {
             let hex_hash = if metadata.is_dir() {
                 // Recursively hash the directory
                 let hasher = DirHasher::new(self.app_id, self.db.clone());
-                hasher.dir_hash(&entry_path)?
+                Box::pin(hasher.dir_hash(&entry_path)).await?
             } else {
-                let hasher = FileHasher::default();
-                hasher.file_hash(&entry_path)?
+                let hasher = FileHasher::new(self.app_id, self.db.clone());
+                hasher.file_hash(&entry_path).await?
             };
-            println!("hash: {}, entry: {}", hex_hash, entry_path.display());
             self.hasher.update(hex_hash.as_bytes());
         }
         let combined_hash = self.hasher.finalize();
         // Encode the hash as a hexadecimal string
         let hex_hash = base16ct::lower::encode_string(&combined_hash);
+        println!("hash: {}, entry: {}", hex_hash, file_path.display());
         Ok(hex_hash)
     }
 }

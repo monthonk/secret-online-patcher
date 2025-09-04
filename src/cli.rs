@@ -73,7 +73,7 @@ pub async fn remove_app(name: &str, db: &PatcherDatabase) {
 }
 
 pub async fn check_app(name: &str, db: &PatcherDatabase) -> Result<(), anyhow::Error> {
-    let app = db.get_application(name).await;
+    let app = db.get_application(name).await?;
     match app {
         Some(app) => {
             println!(
@@ -81,7 +81,7 @@ pub async fn check_app(name: &str, db: &PatcherDatabase) -> Result<(), anyhow::E
                 app.id, app.name, app.version, app.hash_code
             );
             let hasher = DirHasher::new(Some(app.id), db.clone());
-            let new_hash = hasher.dir_hash(&PathBuf::from(&app.install_path))?;
+            let new_hash = hasher.dir_hash(&PathBuf::from(&app.install_path)).await?;
             if new_hash == app.hash_code {
                 println!("No changes detected for application {}", app.name);
             } else {
@@ -101,7 +101,7 @@ pub async fn update_app(
     version: &str,
     db: &PatcherDatabase,
 ) -> Result<(), anyhow::Error> {
-    let app = db.get_application(name).await;
+    let app = db.get_application(name).await?;
     match app {
         Some(app) => {
             println!(
@@ -109,7 +109,7 @@ pub async fn update_app(
                 app.id, app.name, app.version, app.hash_code
             );
             let hasher = DirHasher::new(Some(app.id), db.clone());
-            let new_hash = hasher.dir_hash(&PathBuf::from(&app.install_path))?;
+            let new_hash = hasher.dir_hash(&PathBuf::from(&app.install_path)).await?;
             if new_hash == app.hash_code {
                 println!("No changes detected for application {}", app.name);
                 println!("Skip updating...");

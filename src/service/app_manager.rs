@@ -24,7 +24,7 @@ impl AppManager {
         // Hash code is the CRC32 hash of the hash from all files in the app directory
         // order by their names.
         let hasher = DirHasher::new(None, self.db.clone());
-        let app_hash = hasher.dir_hash(path)?;
+        let app_hash = hasher.dir_hash(path).await?;
         println!("Application hash is {}", app_hash);
 
         // Implementation for adding an app

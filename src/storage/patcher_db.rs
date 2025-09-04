@@ -2,7 +2,7 @@ use std::path::Path;
 
 use sqlx::{Executor, SqlitePool};
 
-use crate::storage::application_data::Application;
+use crate::storage::{application_data::Application, file_index::FileIndex};
 
 #[derive(Clone)]
 pub struct PatcherDatabase {
@@ -90,7 +90,7 @@ impl PatcherDatabase {
             .inspect_err(|e| println!("Error removing application: {}", e));
     }
 
-    pub async fn get_application(&self, name: &str) -> Option<Application> {
+    pub async fn get_application(&self, name: &str) -> Result<Option<Application>, sqlx::Error> {
         let query = "
             SELECT id, name, version, hash_code, install_path
             FROM applications
@@ -98,10 +98,9 @@ impl PatcherDatabase {
         ";
         sqlx::query_as(query)
             .bind(name)
-            .fetch_one(&self.db_pool)
+            .fetch_optional(&self.db_pool)
             .await
             .inspect_err(|e| println!("Error fetching application: {}", e))
-            .ok()
     }
 
     pub async fn list_applications(&self) -> Vec<Application> {
@@ -140,5 +139,19 @@ impl PatcherDatabase {
             )
             .await
             .inspect_err(|e| println!("Error creating file index: {}", e));
+    }
+
+    pub async fn get_file_index(&self, app_id: i64, file_path: &str) -> Result<Option<FileIndex>, sqlx::Error> {
+        let query = "
+            SELECT app_id, file_path, file_type, hash_code, modified_time
+            FROM file_index
+            WHERE app_id = ? AND file_path = ?;
+        ";
+        sqlx::query_as(query)
+            .bind(app_id)
+            .bind(file_path)
+            .fetch_optional(&self.db_pool)
+            .await
+            .inspect_err(|e| println!("Error fetching file index: {}", e))
     }
 }
