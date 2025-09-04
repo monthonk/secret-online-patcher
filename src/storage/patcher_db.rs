@@ -15,7 +15,7 @@ impl PatcherDatabase {
 
     /// Initialize tables in the database
     pub async fn initialize(&self) {
-        let query = "
+        let application_table = "
             CREATE TABLE IF NOT EXISTS applications (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
@@ -26,7 +26,20 @@ impl PatcherDatabase {
 
             CREATE UNIQUE INDEX IF NOT EXISTS ux_app_name ON applications (name);
         ";
-        self.db_pool.execute(query).await.unwrap();
+        self.db_pool.execute(application_table).await.unwrap();
+
+        let file_index_table = "
+            CREATE TABLE IF NOT EXISTS file_index (
+                app_id INTEGER NOT NULL,
+                file_path TEXT NOT NULL,
+                file_type TEXT CHECK( file_type IN ('FILE','DIRECTORY') ) NOT NULL,
+                hash_code TEXT NOT NULL,
+                modified_time TIMESTAMP,
+                PRIMARY KEY (app_id, file_path),
+                FOREIGN KEY (app_id) REFERENCES applications (id)
+            );
+        ";
+        self.db_pool.execute(file_index_table).await.unwrap();
     }
 
     pub async fn add_application(
@@ -103,5 +116,31 @@ impl PatcherDatabase {
             .await
             .inspect_err(|e| println!("Error listing applications: {e}"))
             .unwrap_or_default()
+    }
+
+    pub async fn create_file_index(
+        &self,
+        app_id: i64,
+        file_path: &str,
+        file_type: &str,
+        hash_code: &str,
+        modified_time: &str,
+    ) {
+        let query = "
+            INSERT INTO file_index (app_id, file_path, file_type, hash_code, modified_time)
+            VALUES (?, ?, ?, ?, ?);
+        ";
+        let _result = self
+            .db_pool
+            .execute(
+                sqlx::query(query)
+                    .bind(app_id)
+                    .bind(file_path)
+                    .bind(file_type)
+                    .bind(hash_code)
+                    .bind(modified_time),
+            )
+            .await
+            .inspect_err(|e| println!("Error creating file index: {}", e));
     }
 }
