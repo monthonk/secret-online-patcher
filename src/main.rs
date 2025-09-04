@@ -1,6 +1,7 @@
 use clap::Parser;
 use secret_online_patcher::{
     cli::{self, Args, Operation},
+    service::app_manager::AppManager,
     storage::patcher_db::PatcherDatabase,
 };
 use sqlx::SqlitePool;
@@ -23,6 +24,8 @@ async fn main() {
     let patcher_db = PatcherDatabase::new(db_pool);
     patcher_db.initialize().await;
 
+    let app_manager = AppManager::new(patcher_db.clone());
+
     match args.op {
         Operation::List => {
             // Call the function to list applications
@@ -40,7 +43,7 @@ async fn main() {
                 args.app_name.as_ref().unwrap(),
                 args.app_version.as_ref().unwrap(),
                 args.app_path.as_ref().unwrap(),
-                &patcher_db,
+                &app_manager,
             )
             .await
             {

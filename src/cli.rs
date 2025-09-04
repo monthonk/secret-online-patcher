@@ -5,6 +5,7 @@ use clap::{Parser, ValueEnum};
 
 use crate::{
     indexer::dir_hasher::DirHasher,
+    service::app_manager::AppManager,
     storage::{application_data::Application, patcher_db::PatcherDatabase},
 };
 
@@ -59,7 +60,7 @@ pub async fn add_app(
     name: &str,
     version: &str,
     path: &PathBuf,
-    db: &PatcherDatabase,
+    app_manager: &AppManager,
 ) -> Result<(), anyhow::Error> {
     // Compute hash code for the app
     // Hash code is the CRC32 hash of the hash from all files in the app directory
@@ -69,7 +70,7 @@ pub async fn add_app(
     println!("Application hash is {}", app_hash);
 
     // Implementation for adding an app
-    db.add_application(name, version, &app_hash, path).await;
+    let _app = app_manager.create_application(name, version, path).await?;
 
     Ok(())
 }

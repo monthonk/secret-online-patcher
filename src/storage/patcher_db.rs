@@ -4,6 +4,7 @@ use sqlx::{Executor, SqlitePool};
 
 use crate::storage::application_data::Application;
 
+#[derive(Clone)]
 pub struct PatcherDatabase {
     db_pool: SqlitePool,
 }
@@ -48,23 +49,20 @@ impl PatcherDatabase {
         version: &str,
         hash_code: &str,
         install_path: &Path,
-    ) {
+    ) -> Result<Application, sqlx::Error> {
         let install_path = install_path.to_string_lossy();
         let query = "
             INSERT INTO applications (name, version, hash_code, install_path)
-            VALUES (?, ?, ?, ?);
+            VALUES (?, ?, ?, ?)
+            RETURNING *
         ";
-        let _result = self
-            .db_pool
-            .execute(
-                sqlx::query(query)
-                    .bind(name)
-                    .bind(version)
-                    .bind(hash_code)
-                    .bind(install_path),
-            )
+        sqlx::query_as(query)
+            .bind(name)
+            .bind(version)
+            .bind(hash_code)
+            .bind(install_path.as_ref())
+            .fetch_one(&self.db_pool)
             .await
-            .inspect_err(|e| println!("Error adding application: {}", e));
     }
 
     pub async fn update_application(&self, id: &i64, version: &str, hash_code: &str) {
