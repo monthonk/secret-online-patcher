@@ -1,6 +1,7 @@
 use std::{fs, path::PathBuf};
 
 use anyhow::anyhow;
+use chrono::{DateTime, Utc};
 use sha2::{Digest, Sha256};
 
 use crate::{indexer::file_hasher::FileHasher, storage::patcher_db::PatcherDatabase};
@@ -22,6 +23,11 @@ impl DirHasher {
 
     pub async fn dir_hash(mut self, file_path: &PathBuf) -> Result<String, anyhow::Error> {
         let mut entries = Vec::new();
+        let metadata = fs::metadata(file_path)?;
+        if !metadata.is_dir() {
+            return Err(anyhow!("Provided path is not a directory"));
+        }
+
         for entry in fs::read_dir(file_path)? {
             if entry.is_err() {
                 return Err(anyhow!("Error reading directory"));
@@ -49,7 +55,22 @@ impl DirHasher {
         let combined_hash = self.hasher.finalize();
         // Encode the hash as a hexadecimal string
         let hex_hash = base16ct::lower::encode_string(&combined_hash);
-        println!("hash: {}, entry: {}", hex_hash, file_path.display());
+        let path_str = file_path.display().to_string();
+        let modified_time = metadata.modified()?;
+        let modified_time = DateTime::<Utc>::from(modified_time).naive_utc();
+        println!("hash: {}, entry: {} (recomputed)", hex_hash, &path_str);
+        println!("Directory modified time: {}", modified_time);
+
+        // Update index in db
+        self.db
+            .upsert_file_index(
+                self.app_id,
+                &path_str,
+                "DIRECTORY",
+                &hex_hash,
+                &modified_time,
+            )
+            .await?;
         Ok(hex_hash)
     }
 }

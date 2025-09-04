@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use chrono::NaiveDateTime;
 use sqlx::{Executor, SqlitePool};
 
 use crate::storage::{application_data::Application, file_index::FileIndex};
@@ -113,33 +114,36 @@ impl PatcherDatabase {
             .unwrap_or_default()
     }
 
-    pub async fn create_file_index(
+    pub async fn upsert_file_index(
         &self,
         app_id: i64,
         file_path: &str,
         file_type: &str,
         hash_code: &str,
-        modified_time: &str,
-    ) {
+        modified_time: &NaiveDateTime,
+    ) -> Result<FileIndex, sqlx::Error> {
         let query = "
             INSERT INTO file_index (app_id, file_path, file_type, hash_code, modified_time)
-            VALUES (?, ?, ?, ?, ?);
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (app_id, file_path) DO UPDATE
+            SET file_type = $3, hash_code = $4, modified_time = $5
+            RETURNING *;
         ";
-        let _result = self
-            .db_pool
-            .execute(
-                sqlx::query(query)
-                    .bind(app_id)
-                    .bind(file_path)
-                    .bind(file_type)
-                    .bind(hash_code)
-                    .bind(modified_time),
-            )
+        sqlx::query_as(query)
+            .bind(app_id)
+            .bind(file_path)
+            .bind(file_type)
+            .bind(hash_code)
+            .bind(modified_time)
+            .fetch_one(&self.db_pool)
             .await
-            .inspect_err(|e| println!("Error creating file index: {}", e));
     }
 
-    pub async fn get_file_index(&self, app_id: i64, file_path: &str) -> Result<Option<FileIndex>, sqlx::Error> {
+    pub async fn get_file_index(
+        &self,
+        app_id: i64,
+        file_path: &str,
+    ) -> Result<Option<FileIndex>, sqlx::Error> {
         let query = "
             SELECT app_id, file_path, file_type, hash_code, modified_time
             FROM file_index
