@@ -50,7 +50,7 @@ pub async fn list_apps(db: &PatcherDatabase) {
     let apps = db.list_applications().await;
     for app in apps {
         println!(
-            "ID: {}, Name: {}, Version: {}, Hash: {}",
+            "ID: {}, Name: {}, Version: {}, Hash: {:?}",
             app.id, app.name, app.version, app.hash_code
         );
     }
@@ -77,12 +77,19 @@ pub async fn check_app(name: &str, db: &PatcherDatabase) -> Result<(), anyhow::E
     match app {
         Some(app) => {
             println!(
-                "ID: {}, Name: {}, Version: {}, Hash: {}",
+                "ID: {}, Name: {}, Version: {}, Hash: {:?}",
                 app.id, app.name, app.version, app.hash_code
             );
-            let hasher = DirHasher::new(Some(app.id), db.clone());
+            if app.hash_code.is_none() {
+                return Err(anyhow!(
+                    "Failed to check application due to missing hash code, it might not be initialized properly!"
+                ));
+            }
+            let old_hash = app.hash_code.clone().unwrap();
+
+            let hasher = DirHasher::new(app.id, db.clone());
             let new_hash = hasher.dir_hash(&PathBuf::from(&app.install_path)).await?;
-            if new_hash == app.hash_code {
+            if new_hash == old_hash {
                 println!("No changes detected for application {}", app.name);
             } else {
                 println!("Changes detected for application {}!", app.name);
@@ -105,12 +112,19 @@ pub async fn update_app(
     match app {
         Some(app) => {
             println!(
-                "ID: {}, Name: {}, Current Version: {}, Hash: {}",
+                "ID: {}, Name: {}, Current Version: {}, Hash: {:?}",
                 app.id, app.name, app.version, app.hash_code
             );
-            let hasher = DirHasher::new(Some(app.id), db.clone());
+            if app.hash_code.is_none() {
+                return Err(anyhow!(
+                    "Failed to update application due to missing hash code, it might not be initialized properly!"
+                ));
+            }
+            let old_hash = app.hash_code.clone().unwrap();
+
+            let hasher = DirHasher::new(app.id, db.clone());
             let new_hash = hasher.dir_hash(&PathBuf::from(&app.install_path)).await?;
-            if new_hash == app.hash_code {
+            if new_hash == old_hash {
                 println!("No changes detected for application {}", app.name);
                 println!("Skip updating...");
             } else {
@@ -122,12 +136,12 @@ pub async fn update_app(
                     name: app.name.clone(),
                     version: version.to_string(),
                     install_path: app.install_path.clone(),
-                    hash_code: new_hash,
+                    hash_code: Some(new_hash),
                 };
                 db.update_application(
                     &new_version.id,
                     &new_version.version,
-                    &new_version.hash_code,
+                    new_version.hash_code.as_ref().unwrap(),
                 )
                 .await;
             }

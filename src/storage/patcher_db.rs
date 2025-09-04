@@ -21,7 +21,7 @@ impl PatcherDatabase {
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 version TEXT NOT NULL,
-                hash_code TEXT NOT NULL,
+                hash_code TEXT,
                 install_path TEXT NOT NULL
             );
 
@@ -47,19 +47,17 @@ impl PatcherDatabase {
         &self,
         name: &str,
         version: &str,
-        hash_code: &str,
         install_path: &Path,
     ) -> Result<Application, sqlx::Error> {
         let install_path = install_path.to_string_lossy();
         let query = "
-            INSERT INTO applications (name, version, hash_code, install_path)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO applications (name, version, install_path)
+            VALUES (?, ?, ?)
             RETURNING *
         ";
         sqlx::query_as(query)
             .bind(name)
             .bind(version)
-            .bind(hash_code)
             .bind(install_path.as_ref())
             .fetch_one(&self.db_pool)
             .await

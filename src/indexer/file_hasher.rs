@@ -7,12 +7,12 @@ use crate::storage::{file_index::FileIndex, patcher_db::PatcherDatabase};
 
 pub struct FileHasher {
     hasher: Sha256,
-    app_id: Option<i64>,
+    app_id: i64,
     db: PatcherDatabase,
 }
 
 impl FileHasher {
-    pub fn new(app_id: Option<i64>, db: PatcherDatabase) -> Self {
+    pub fn new(app_id: i64, db: PatcherDatabase) -> Self {
         FileHasher {
             hasher: Sha256::new(),
             app_id,
@@ -34,7 +34,7 @@ impl FileHasher {
 
         let system_time = metadata.modified()?;
         let current_modified_time = DateTime::<Utc>::from(system_time).naive_utc();
-        if let Some(index) = last_index(&self.app_id, file_path, &self.db).await {
+        if let Some(index) = last_index(self.app_id, file_path, &self.db).await {
             if index.file_type == "FILE"
                 && current_modified_time == index.modified_time
                 && index.hash_code.is_some()
@@ -70,17 +70,7 @@ impl FileHasher {
     }
 }
 
-async fn last_index(
-    app_id: &Option<i64>,
-    file_path: &PathBuf,
-    db: &PatcherDatabase,
-) -> Option<FileIndex> {
-    if app_id.is_none() {
-        // No data in db
-        return None;
-    }
-
-    let app_id = app_id.unwrap();
+async fn last_index(app_id: i64, file_path: &PathBuf, db: &PatcherDatabase) -> Option<FileIndex> {
     let file_path = file_path.display().to_string();
     db.get_file_index(app_id, &file_path).await.unwrap_or(None)
 }

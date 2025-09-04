@@ -7,12 +7,12 @@ use crate::{indexer::file_hasher::FileHasher, storage::patcher_db::PatcherDataba
 
 pub struct DirHasher {
     hasher: Sha256,
-    app_id: Option<i64>,
+    app_id: i64,
     db: PatcherDatabase,
 }
 
 impl DirHasher {
-    pub fn new(app_id: Option<i64>, db: PatcherDatabase) -> Self {
+    pub fn new(app_id: i64, db: PatcherDatabase) -> Self {
         DirHasher {
             hasher: Sha256::new(),
             app_id,

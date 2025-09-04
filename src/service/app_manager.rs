@@ -20,18 +20,21 @@ impl AppManager {
         version: &str,
         path: &PathBuf,
     ) -> Result<Application, anyhow::Error> {
+        // Add new app to db
+        let app = self.db.add_application(name, version, path).await?;
+
         // Compute hash code for the app
-        // Hash code is the CRC32 hash of the hash from all files in the app directory
+        // Hash code is the SHA256 hash of the hash from all files in the app directory
         // order by their names.
-        let hasher = DirHasher::new(None, self.db.clone());
+        let hasher = DirHasher::new(app.id, self.db.clone());
         let app_hash = hasher.dir_hash(path).await?;
         println!("Application hash is {}", app_hash);
 
-        // Implementation for adding an app
-        let app = self
-            .db
-            .add_application(name, version, &app_hash, path)
-            .await?;
+        // Update the application with the computed hash
+        self.db
+            .update_application(&app.id, version, &app_hash)
+            .await;
+
         Ok(app)
     }
 }
