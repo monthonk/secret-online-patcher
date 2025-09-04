@@ -1,4 +1,8 @@
-use std::{fs::File, io::Read, path::PathBuf};
+use std::{
+    fs::File,
+    io::Read,
+    path::{Path, PathBuf},
+};
 
 use chrono::{DateTime, Utc};
 use sha2::{Digest, Sha256};
@@ -34,19 +38,18 @@ impl FileHasher {
 
         let modified_time = metadata.modified()?;
         let modified_time = DateTime::<Utc>::from(modified_time).naive_utc();
-        if let Some(index) = last_index(self.app_id, file_path, &self.db).await {
-            if index.file_type == "FILE"
-                && modified_time == index.modified_time
-                && index.hash_code.is_some()
-            {
-                let hex_hash = index.hash_code.unwrap();
-                println!(
-                    "hash: {}, entry: {} (cached)",
-                    hex_hash,
-                    file_path.display()
-                );
-                return Ok(hex_hash);
-            }
+        if let Some(index) = last_index(self.app_id, file_path, &self.db).await
+            && index.file_type == "FILE"
+            && modified_time == index.modified_time
+            && index.hash_code.is_some()
+        {
+            let hex_hash = index.hash_code.unwrap();
+            println!(
+                "hash: {}, entry: {} (cached)",
+                hex_hash,
+                file_path.display()
+            );
+            return Ok(hex_hash);
         }
 
         let mut buffer: [u8; 4096] = [0; 4096]; // Read in 4KB chunks
@@ -62,27 +65,17 @@ impl FileHasher {
         // Encode the hash as a hexadecimal string
         let hex_hash = base16ct::lower::encode_string(&hash);
         let path_str = file_path.display().to_string();
-        println!(
-            "hash: {}, entry: {} (recomputed)",
-            hex_hash,
-            &path_str
-        );
+        println!("hash: {}, entry: {} (recomputed)", hex_hash, &path_str);
 
         // Update index in db
         self.db
-            .upsert_file_index(
-                self.app_id,
-                &path_str,
-                "FILE",
-                &hex_hash,
-                &modified_time,
-            )
+            .upsert_file_index(self.app_id, &path_str, "FILE", &hex_hash, &modified_time)
             .await?;
         Ok(hex_hash)
     }
 }
 
-async fn last_index(app_id: i64, file_path: &PathBuf, db: &PatcherDatabase) -> Option<FileIndex> {
+async fn last_index(app_id: i64, file_path: &Path, db: &PatcherDatabase) -> Option<FileIndex> {
     let file_path = file_path.display().to_string();
     db.get_file_index(app_id, &file_path).await.unwrap_or(None)
 }

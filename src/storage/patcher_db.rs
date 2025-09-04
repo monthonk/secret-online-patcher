@@ -38,7 +38,7 @@ impl PatcherDatabase {
                 hash_code TEXT NOT NULL,
                 modified_time TIMESTAMP,
                 PRIMARY KEY (app_id, file_path),
-                FOREIGN KEY (app_id) REFERENCES applications (id)
+                FOREIGN KEY (app_id) REFERENCES applications (id) ON DELETE CASCADE
             );
         ";
         self.db_pool.execute(file_index_table).await.unwrap();

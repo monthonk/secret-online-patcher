@@ -5,7 +5,10 @@ use secret_online_patcher::{
     storage::patcher_db::PatcherDatabase,
 };
 use sqlx::SqlitePool;
-use std::path::Path;
+use std::{
+    path::Path,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 #[tokio::main]
 async fn main() {
@@ -26,6 +29,7 @@ async fn main() {
 
     let app_manager = AppManager::new(patcher_db.clone());
 
+    let start = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
     match args.op {
         Operation::List => {
             // Call the function to list applications
@@ -81,4 +85,6 @@ async fn main() {
             }
         }
     }
+    let end = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+    println!("Operation took {} milliseconds", (end - start).as_millis());
 }
