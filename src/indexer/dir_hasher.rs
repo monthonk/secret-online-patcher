@@ -3,14 +3,23 @@ use std::{fs, path::PathBuf};
 use anyhow::anyhow;
 use sha2::{Digest, Sha256};
 
-use crate::indexer::file_hasher::FileHasher;
+use crate::{indexer::file_hasher::FileHasher, storage::patcher_db::PatcherDatabase};
 
-#[derive(Default)]
 pub struct DirHasher {
     hasher: Sha256,
+    app_id: Option<i64>,
+    db: PatcherDatabase,
 }
 
 impl DirHasher {
+    pub fn new(app_id: Option<i64>, db: PatcherDatabase) -> Self {
+        DirHasher {
+            hasher: Sha256::new(),
+            app_id,
+            db,
+        }
+    }
+
     pub fn dir_hash(mut self, file_path: &PathBuf) -> Result<String, anyhow::Error> {
         let mut entries = Vec::new();
         for entry in fs::read_dir(file_path)? {
@@ -29,7 +38,7 @@ impl DirHasher {
             let metadata = fs::metadata(&entry_path)?;
             let hex_hash = if metadata.is_dir() {
                 // Recursively hash the directory
-                let hasher = DirHasher::default();
+                let hasher = DirHasher::new(self.app_id, self.db.clone());
                 hasher.dir_hash(&entry_path)?
             } else {
                 let hasher = FileHasher::default();

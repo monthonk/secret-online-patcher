@@ -62,13 +62,6 @@ pub async fn add_app(
     path: &PathBuf,
     app_manager: &AppManager,
 ) -> Result<(), anyhow::Error> {
-    // Compute hash code for the app
-    // Hash code is the CRC32 hash of the hash from all files in the app directory
-    // order by their names.
-    let hasher = DirHasher::default();
-    let app_hash = hasher.dir_hash(path)?;
-    println!("Application hash is {}", app_hash);
-
     // Implementation for adding an app
     let _app = app_manager.create_application(name, version, path).await?;
 
@@ -87,7 +80,7 @@ pub async fn check_app(name: &str, db: &PatcherDatabase) -> Result<(), anyhow::E
                 "ID: {}, Name: {}, Version: {}, Hash: {}",
                 app.id, app.name, app.version, app.hash_code
             );
-            let hasher = DirHasher::default();
+            let hasher = DirHasher::new(Some(app.id), db.clone());
             let new_hash = hasher.dir_hash(&PathBuf::from(&app.install_path))?;
             if new_hash == app.hash_code {
                 println!("No changes detected for application {}", app.name);
@@ -115,7 +108,7 @@ pub async fn update_app(
                 "ID: {}, Name: {}, Current Version: {}, Hash: {}",
                 app.id, app.name, app.version, app.hash_code
             );
-            let hasher = DirHasher::default();
+            let hasher = DirHasher::new(Some(app.id), db.clone());
             let new_hash = hasher.dir_hash(&PathBuf::from(&app.install_path))?;
             if new_hash == app.hash_code {
                 println!("No changes detected for application {}", app.name);
