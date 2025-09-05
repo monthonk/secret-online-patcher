@@ -24,7 +24,11 @@ impl FileHasher {
         }
     }
 
-    pub async fn file_hash(mut self, file_path: &PathBuf) -> Result<String, anyhow::Error> {
+    pub async fn file_hash(
+        mut self,
+        file_path: &PathBuf,
+        update_index: bool,
+    ) -> Result<String, anyhow::Error> {
         let mut file =
             File::open(file_path).map_err(|e| anyhow::anyhow!("Error opening file: {}", e))?;
         let metadata = file
@@ -68,9 +72,11 @@ impl FileHasher {
         println!("hash: {}, entry: {} (recomputed)", hex_hash, &path_str);
 
         // Update index in db
-        self.db
-            .upsert_file_index(self.app_id, &path_str, "FILE", &hex_hash, &modified_time)
-            .await?;
+        if update_index {
+            self.db
+                .upsert_file_index(self.app_id, &path_str, "FILE", &hex_hash, &modified_time)
+                .await?;
+        }
         Ok(hex_hash)
     }
 }

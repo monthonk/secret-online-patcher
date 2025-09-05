@@ -88,7 +88,9 @@ pub async fn check_app(name: &str, db: &PatcherDatabase) -> Result<(), anyhow::E
             let old_hash = app.hash_code.clone().unwrap();
 
             let hasher = DirHasher::new(app.id, db.clone());
-            let new_hash = hasher.dir_hash(&PathBuf::from(&app.install_path)).await?;
+            let new_hash = hasher
+                .dir_hash(&PathBuf::from(&app.install_path), false)
+                .await?;
             if new_hash == old_hash {
                 println!("No changes detected for application {}", app.name);
             } else {
@@ -123,7 +125,9 @@ pub async fn update_app(
             let old_hash = app.hash_code.clone().unwrap();
 
             let hasher = DirHasher::new(app.id, db.clone());
-            let new_hash = hasher.dir_hash(&PathBuf::from(&app.install_path)).await?;
+            let new_hash = hasher
+                .dir_hash(&PathBuf::from(&app.install_path), true)
+                .await?;
             if new_hash == old_hash {
                 println!("No changes detected for application {}", app.name);
                 println!("Skip updating...");

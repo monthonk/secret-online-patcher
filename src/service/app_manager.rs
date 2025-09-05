@@ -27,7 +27,7 @@ impl AppManager {
         // Hash code is the SHA256 hash of the hash from all files in the app directory
         // order by their names.
         let hasher = DirHasher::new(app.id, self.db.clone());
-        let app_hash = hasher.dir_hash(path).await?;
+        let app_hash = hasher.dir_hash(path, true).await?;
         println!("Application hash is {}", app_hash);
 
         // Update the application with the computed hash
