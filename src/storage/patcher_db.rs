@@ -122,6 +122,10 @@ impl PatcherDatabase {
         hash_code: &str,
         modified_time: &NaiveDateTime,
     ) -> Result<FileIndex, sqlx::Error> {
+        println!(
+            "Upserting file index: app_id={}, file_path={}, file_type={}, hash_code={}, modified_time={}",
+            app_id, file_path, file_type, hash_code, modified_time
+        );
         let query = "
             INSERT INTO file_index (app_id, file_path, file_type, hash_code, modified_time)
             VALUES ($1, $2, $3, $4, $5)

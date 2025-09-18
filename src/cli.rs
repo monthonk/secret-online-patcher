@@ -4,7 +4,7 @@ use anyhow::anyhow;
 use clap::{Parser, ValueEnum};
 
 use crate::{
-    indexer::dir_hasher::DirHasher,
+    indexer::{dir_hasher::DirHasher, indexer_config::IndexerConfig},
     service::app_manager::AppManager,
     storage::{application_data::Application, patcher_db::PatcherDatabase},
 };
@@ -87,10 +87,9 @@ pub async fn check_app(name: &str, db: &PatcherDatabase) -> Result<(), anyhow::E
             }
             let old_hash = app.hash_code.clone().unwrap();
 
-            let hasher = DirHasher::new(app.id, db.clone());
-            let new_hash = hasher
-                .dir_hash(&PathBuf::from(&app.install_path), false)
-                .await?;
+            let indexer_config = IndexerConfig::new(app.id, db.clone(), false);
+            let hasher = DirHasher::new(indexer_config);
+            let new_hash = hasher.dir_hash(&PathBuf::from(&app.install_path)).await?;
             if new_hash == old_hash {
                 println!("No changes detected for application {}", app.name);
             } else {
@@ -124,10 +123,9 @@ pub async fn update_app(
             }
             let old_hash = app.hash_code.clone().unwrap();
 
-            let hasher = DirHasher::new(app.id, db.clone());
-            let new_hash = hasher
-                .dir_hash(&PathBuf::from(&app.install_path), true)
-                .await?;
+            let indexer_config = IndexerConfig::new(app.id, db.clone(), true);
+            let hasher = DirHasher::new(indexer_config);
+            let new_hash = hasher.dir_hash(&PathBuf::from(&app.install_path)).await?;
             if new_hash == old_hash {
                 println!("No changes detected for application {}", app.name);
                 println!("Skip updating...");

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use crate::{
-    indexer::dir_hasher::DirHasher,
+    indexer::{dir_hasher::DirHasher, indexer_config::IndexerConfig},
     storage::{application_data::Application, patcher_db::PatcherDatabase},
 };
 
@@ -26,8 +26,9 @@ impl AppManager {
         // Compute hash code for the app
         // Hash code is the SHA256 hash of the hash from all files in the app directory
         // order by their names.
-        let hasher = DirHasher::new(app.id, self.db.clone());
-        let app_hash = hasher.dir_hash(path, true).await?;
+        let indexer_config = IndexerConfig::new(app.id, self.db.clone(), true);
+        let hasher = DirHasher::new(indexer_config);
+        let app_hash = hasher.dir_hash(path).await?;
         println!("Application hash is {}", app_hash);
 
         // Update the application with the computed hash

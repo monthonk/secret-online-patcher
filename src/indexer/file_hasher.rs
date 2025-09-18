@@ -7,18 +7,17 @@ use std::{
 use chrono::{DateTime, Utc};
 
 use crate::{
-    indexer::indexed_hasher::IndexedHasher,
+    indexer::{indexed_hasher::IndexedHasher, indexer_config::IndexerConfig},
     storage::{file_index::FileIndex, patcher_db::PatcherDatabase},
 };
 
 pub struct FileHasher {
-    app_id: i64,
-    db: PatcherDatabase,
+    config: IndexerConfig,
 }
 
 impl FileHasher {
-    pub fn new(app_id: i64, db: PatcherDatabase) -> Self {
-        FileHasher { app_id, db }
+    pub fn new(config: IndexerConfig) -> Self {
+        FileHasher { config }
     }
 
     pub async fn file_hash(self, file_path: &PathBuf) -> Result<IndexedHasher, anyhow::Error> {
@@ -36,7 +35,7 @@ impl FileHasher {
         let modified_time = metadata.modified()?;
         let modified_time = DateTime::<Utc>::from(modified_time).naive_utc();
         // Check if we have a cached hash for this file
-        if let Some(index) = last_index(self.app_id, file_path, &self.db).await
+        if let Some(index) = last_index(self.config.app_id, file_path, &self.config.db).await
             && index.file_type == "FILE"
             && modified_time == index.modified_time
             && index.hash_code.is_some()
@@ -47,13 +46,14 @@ impl FileHasher {
                 hex_hash,
                 file_path.display()
             );
-            let indexed_hasher = IndexedHasher::from_hash(file_path, modified_time, &hex_hash);
+            let indexed_hasher =
+                IndexedHasher::from_hash(file_path, "FILE", modified_time, &hex_hash, self.config.clone());
             return Ok(indexed_hasher);
         }
 
         let mut buffer: [u8; 4096] = [0; 4096]; // Read in 4KB chunks
 
-        let mut hasher = IndexedHasher::new(file_path, modified_time);
+        let mut hasher = IndexedHasher::new(file_path, "FILE", modified_time, self.config.clone());
         while let Ok(bytes_read) = file.read(&mut buffer) {
             // Reaching end of file
             if bytes_read == 0 {

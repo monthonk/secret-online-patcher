@@ -3,26 +3,20 @@ use std::{fs, path::PathBuf};
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
 
-use crate::{
-    indexer::{file_hasher::FileHasher, indexed_hasher::IndexedHasher},
-    storage::patcher_db::PatcherDatabase,
+use crate::indexer::{
+    file_hasher::FileHasher, indexed_hasher::IndexedHasher, indexer_config::IndexerConfig,
 };
 
 pub struct DirHasher {
-    app_id: i64,
-    db: PatcherDatabase,
+    config: IndexerConfig,
 }
 
 impl DirHasher {
-    pub fn new(app_id: i64, db: PatcherDatabase) -> Self {
-        DirHasher { app_id, db }
+    pub fn new(config: IndexerConfig) -> Self {
+        DirHasher { config }
     }
 
-    pub async fn dir_hash(
-        self,
-        file_path: &PathBuf,
-        update_index: bool,
-    ) -> Result<String, anyhow::Error> {
+    pub async fn dir_hash(self, file_path: &PathBuf) -> Result<String, anyhow::Error> {
         let mut entries = Vec::new();
         let metadata = fs::metadata(file_path)?;
         if !metadata.is_dir() {
@@ -43,39 +37,24 @@ impl DirHasher {
         entries.sort();
 
         // Recompute the hash by combining the hashes of all entries
-        let mut hasher = IndexedHasher::new(file_path, modified_time);
+        let mut dir_hasher =
+            IndexedHasher::new(file_path, "DIRECTORY", modified_time, self.config.clone());
         for entry_path in entries {
             let metadata = fs::metadata(&entry_path)?;
             let hex_hash = if metadata.is_dir() {
                 // Recursively hash the directory
-                let hasher = DirHasher::new(self.app_id, self.db.clone());
-                Box::pin(hasher.dir_hash(&entry_path, update_index)).await?
+                let hasher = DirHasher::new(self.config.clone());
+                Box::pin(hasher.dir_hash(&entry_path)).await?
             } else {
-                let hasher = FileHasher::new(self.app_id, self.db.clone());
+                let hasher = FileHasher::new(self.config.clone());
                 let indexed_hasher = hasher.file_hash(&entry_path).await?;
-                let file_path = indexed_hasher.file_path.display().to_string();
-                let modified_time = indexed_hasher.modified_time.clone();
-                let (hex_hash, _) = indexed_hasher.finalize();
-                // Update index in db
-                // TODO: DO NOT update if the hash is cached
-                if update_index {
-                    self.db
-                        .upsert_file_index(
-                            self.app_id,
-                            &file_path,
-                            "FILE",
-                            &hex_hash,
-                            &modified_time,
-                        )
-                        .await?;
-                }
+                let (hex_hash, _changed_files) = indexed_hasher.finalize().await;
                 hex_hash
             };
-            hasher.append_hash(hex_hash.as_bytes());
+            dir_hasher.append_hash(hex_hash.as_bytes());
         }
 
-        let path_str = file_path.display().to_string();
-        let (combined_hash, changed_file_list) = hasher.finalize();
+        let (combined_hash, changed_file_list) = dir_hasher.finalize().await;
 
         // List changed files,
         if !changed_file_list.is_empty() {
@@ -83,21 +62,6 @@ impl DirHasher {
             for changed_file in changed_file_list {
                 println!(" - {}", changed_file);
             }
-        }
-
-        // Update index in db
-        if update_index {
-            println!("Directory modified time: {}", modified_time);
-
-            self.db
-                .upsert_file_index(
-                    self.app_id,
-                    &path_str,
-                    "DIRECTORY",
-                    &combined_hash,
-                    &modified_time,
-                )
-                .await?;
         }
 
         Ok(combined_hash)

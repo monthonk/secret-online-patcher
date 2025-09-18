@@ -3,40 +3,56 @@ use std::path::PathBuf;
 use chrono::NaiveDateTime;
 use sha2::{Digest, Sha256};
 
+use crate::indexer::indexer_config::IndexerConfig;
+
 // A struct representing a hasher with a list of indexed file paths.
 // If a previous index exists, the list will contain only paths that have changed since the last index.
 pub struct IndexedHasher {
     // TODO: move file info to a new struct
     pub file_path: PathBuf,
+    // FILE or DIRECTORY
+    pub file_type: String,
     pub modified_time: NaiveDateTime,
     pub hasher: Sha256,
     pub cached_hash: Option<String>,
     pub changed_files: Vec<String>,
+    pub config: IndexerConfig,
 }
 
 impl IndexedHasher {
-    pub fn new(file_path: &PathBuf, modified_time: NaiveDateTime) -> Self {
+    pub fn new(
+        file_path: &PathBuf,
+        file_type: &str,
+        modified_time: NaiveDateTime,
+        config: IndexerConfig,
+    ) -> Self {
         IndexedHasher {
             file_path: file_path.clone(),
+            file_type: file_type.to_string(),
             modified_time,
             hasher: Sha256::new(),
             cached_hash: None,
             changed_files: Vec::new(),
+            config,
         }
     }
 
     pub fn from_hash(
         file_path: &PathBuf,
+        file_type: &str,
         modified_time: NaiveDateTime,
         hex_hash: impl AsRef<str>,
+        config: IndexerConfig,
     ) -> Self {
         let hasher = Sha256::new();
         IndexedHasher {
             file_path: file_path.clone(),
+            file_type: file_type.to_string(),
             modified_time,
             hasher,
             cached_hash: Some(hex_hash.as_ref().to_string()),
             changed_files: Vec::new(),
+            config,
         }
     }
 
@@ -54,14 +70,14 @@ impl IndexedHasher {
     /// and combine their hashes.
     ///
     /// The provided IndexedHasher is consumed in the process.
-    pub fn extend(&mut self, other: IndexedHasher) {
-        let (hex_hash, changed_files) = other.finalize();
+    pub async fn extend(&mut self, other: IndexedHasher) {
+        let (hex_hash, changed_files) = other.finalize().await;
 
         self.hasher.update(hex_hash.as_bytes());
         self.changed_files.extend(changed_files);
     }
 
-    pub fn finalize(self) -> (String, Vec<String>) {
+    pub async fn finalize(self) -> (String, Vec<String>) {
         let path_str = self.file_path.display().to_string();
         if let Some(cached_hash) = self.cached_hash {
             println!("hash: {}, entry: {} (cached)", cached_hash, path_str);
@@ -74,6 +90,22 @@ impl IndexedHasher {
         // Encode the hash as a hexadecimal string
         let hex_hash = base16ct::lower::encode_string(&hash);
         println!("hash: {}, entry: {} (recomputed)", hex_hash, &path_str);
+
+        // Update index if needed
+        if self.config.update_index {
+            self.config
+                .db
+                .upsert_file_index(
+                    self.config.app_id,
+                    &path_str,
+                    &self.file_type,
+                    &hex_hash,
+                    &self.modified_time,
+                )
+                .await
+                .unwrap();
+        }
+
         (hex_hash, self.changed_files)
     }
 }
