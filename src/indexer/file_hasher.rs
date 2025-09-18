@@ -1,8 +1,4 @@
-use std::{
-    fs::File,
-    io::Read,
-    path::{Path, PathBuf},
-};
+use std::{fs::File, io::Read, path::PathBuf};
 
 use chrono::{DateTime, Utc};
 
@@ -10,7 +6,7 @@ use crate::{
     indexer::{
         file_change::FileChangeType, indexed_hasher::IndexedHasher, indexer_config::IndexerConfig,
     },
-    storage::{file_index::FileIndex, patcher_db::PatcherDatabase},
+    storage::db_utils,
 };
 
 pub struct FileHasher {
@@ -37,7 +33,8 @@ impl FileHasher {
         let modified_time = metadata.modified()?;
         let modified_time = DateTime::<Utc>::from(modified_time).naive_utc();
         // Check if we have a cached hash for this file
-        if let Some(index) = last_index(self.config.app_id, file_path, &self.config.db).await
+        if let Some(index) =
+            db_utils::last_index(self.config.app_id, file_path, &self.config.db).await
             && index.file_type == "FILE"
             && modified_time == index.modified_time
             && index.hash_code.is_some()
@@ -68,9 +65,4 @@ impl FileHasher {
         hasher.append_changed_file(&path_str, FileChangeType::Modified);
         Ok(hasher)
     }
-}
-
-async fn last_index(app_id: i64, file_path: &Path, db: &PatcherDatabase) -> Option<FileIndex> {
-    let file_path = file_path.display().to_string();
-    db.get_file_index(app_id, &file_path).await.unwrap_or(None)
 }

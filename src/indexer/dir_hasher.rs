@@ -1,10 +1,14 @@
-use std::{fs, path::PathBuf};
+use std::{collections::HashSet, fs, path::PathBuf};
 
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
 
-use crate::indexer::{
-    file_hasher::FileHasher, indexed_hasher::IndexedHasher, indexer_config::IndexerConfig,
+use crate::{
+    indexer::{
+        file_change::FileChangeType, file_hasher::FileHasher, indexed_hasher::IndexedHasher,
+        indexer_config::IndexerConfig,
+    },
+    storage::db_utils,
 };
 
 pub struct DirHasher {
@@ -16,7 +20,6 @@ impl DirHasher {
         DirHasher { config }
     }
 
-    // TODO: support deleted files
     pub async fn dir_hash(self, file_path: &PathBuf) -> Result<IndexedHasher, anyhow::Error> {
         let mut entries = Vec::new();
         let metadata = fs::metadata(file_path)?;
@@ -25,6 +28,19 @@ impl DirHasher {
         }
         let modified_time = metadata.modified()?;
         let modified_time = DateTime::<Utc>::from(modified_time).naive_utc();
+
+        // Check if we have a cached hash for this directory to see if any files are deleted
+        let mut previous_children = HashSet::new();
+        if let Some(_index) =
+            db_utils::last_index(self.config.app_id, file_path, &self.config.db).await
+        {
+            let previous_files =
+                db_utils::list_indexed_files(self.config.app_id, &file_path, &self.config.db)
+                    .await?;
+            for file in previous_files {
+                previous_children.insert(file.file_path.clone());
+            }
+        }
 
         for entry in fs::read_dir(file_path)? {
             if entry.is_err() {
@@ -40,7 +56,7 @@ impl DirHasher {
         // Recompute the hash by combining the hashes of all entries
         let mut dir_hasher =
             IndexedHasher::new(file_path, "DIRECTORY", modified_time, self.config.clone());
-        for entry_path in entries {
+        for entry_path in &entries {
             let metadata = fs::metadata(&entry_path)?;
             if metadata.is_dir() {
                 // Recursively hash the directory
@@ -52,6 +68,15 @@ impl DirHasher {
                 let result = hasher.file_hash(&entry_path).await?;
                 dir_hasher.extend(result).await;
             };
+        }
+
+        // Find deleted files
+        let current_children: HashSet<String> =
+            entries.iter().map(|p| p.display().to_string()).collect();
+        for file_path in previous_children {
+            if !current_children.contains(&file_path) {
+                dir_hasher.append_changed_file(file_path, FileChangeType::Deleted);
+            }
         }
 
         Ok(dir_hasher)

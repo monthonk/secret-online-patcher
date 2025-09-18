@@ -40,6 +40,8 @@ impl PatcherDatabase {
                 PRIMARY KEY (app_id, file_path),
                 FOREIGN KEY (app_id) REFERENCES applications (id) ON DELETE CASCADE
             );
+
+            CREATE INDEX IF NOT EXISTS ix_file_path ON file_index (file_path);
         ";
         self.db_pool.execute(file_index_table).await.unwrap();
     }
@@ -159,5 +161,24 @@ impl PatcherDatabase {
             .fetch_optional(&self.db_pool)
             .await
             .inspect_err(|e| println!("Error fetching file index: {}", e))
+    }
+
+    pub async fn get_files_in_directory(
+        &self,
+        app_id: i64,
+        dir_path: &str,
+    ) -> Result<Vec<FileIndex>, sqlx::Error> {
+        let like_pattern = format!("{}/%", dir_path.trim_end_matches('/'));
+        let query = "
+            SELECT app_id, file_path, file_type, hash_code, modified_time
+            FROM file_index
+            WHERE app_id = ? AND file_path LIKE ?;
+        ";
+        sqlx::query_as(query)
+            .bind(app_id)
+            .bind(like_pattern)
+            .fetch_all(&self.db_pool)
+            .await
+            .inspect_err(|e| println!("Error fetching files in directory: {}", e))
     }
 }
