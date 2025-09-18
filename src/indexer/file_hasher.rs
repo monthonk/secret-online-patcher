@@ -41,13 +41,13 @@ impl FileHasher {
             && index.hash_code.is_some()
         {
             let hex_hash = index.hash_code.unwrap();
-            println!(
-                "hash: {}, entry: {} (cached)",
-                hex_hash,
-                file_path.display()
+            let indexed_hasher = IndexedHasher::from_hash(
+                file_path,
+                "FILE",
+                modified_time,
+                &hex_hash,
+                self.config.clone(),
             );
-            let indexed_hasher =
-                IndexedHasher::from_hash(file_path, "FILE", modified_time, &hex_hash, self.config.clone());
             return Ok(indexed_hasher);
         }
 

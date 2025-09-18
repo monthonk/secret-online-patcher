@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use chrono::NaiveDateTime;
 use sha2::{Digest, Sha256};
@@ -21,13 +21,13 @@ pub struct IndexedHasher {
 
 impl IndexedHasher {
     pub fn new(
-        file_path: &PathBuf,
+        file_path: &Path,
         file_type: &str,
         modified_time: NaiveDateTime,
         config: IndexerConfig,
     ) -> Self {
         IndexedHasher {
-            file_path: file_path.clone(),
+            file_path: file_path.to_path_buf(),
             file_type: file_type.to_string(),
             modified_time,
             hasher: Sha256::new(),
@@ -38,7 +38,7 @@ impl IndexedHasher {
     }
 
     pub fn from_hash(
-        file_path: &PathBuf,
+        file_path: &Path,
         file_type: &str,
         modified_time: NaiveDateTime,
         hex_hash: impl AsRef<str>,
@@ -46,7 +46,7 @@ impl IndexedHasher {
     ) -> Self {
         let hasher = Sha256::new();
         IndexedHasher {
-            file_path: file_path.clone(),
+            file_path: file_path.to_path_buf(),
             file_type: file_type.to_string(),
             modified_time,
             hasher,
