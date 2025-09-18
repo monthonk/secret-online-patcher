@@ -1,6 +1,10 @@
-use std::{fs::File, io::Read, path::PathBuf};
+use std::{
+    fs::File,
+    io::Read,
+    path::{Path, PathBuf},
+};
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, Utc};
 
 use crate::{
     indexer::{
@@ -33,23 +37,47 @@ impl FileHasher {
         let modified_time = metadata.modified()?;
         let modified_time = DateTime::<Utc>::from(modified_time).naive_utc();
         // Check if we have a cached hash for this file
-        if let Some(index) =
+        let hasher = if let Some(index) =
             db_utils::last_index(self.config.app_id, file_path, &self.config.db).await
-            && index.file_type == "FILE"
-            && modified_time == index.modified_time
-            && index.hash_code.is_some()
         {
-            let hex_hash = index.hash_code.unwrap();
-            let indexed_hasher = IndexedHasher::from_hash(
-                file_path,
-                "FILE",
-                modified_time,
-                &hex_hash,
-                self.config.clone(),
-            );
-            return Ok(indexed_hasher);
-        }
+            // If the file has not been modified and we have a hash, return the cached hash
+            if index.file_type == "FILE"
+                && modified_time == index.modified_time
+                && index.hash_code.is_some()
+            {
+                let hex_hash = index.hash_code.unwrap();
+                let hasher = IndexedHasher::from_hash(
+                    file_path,
+                    "FILE",
+                    modified_time,
+                    &hex_hash,
+                    self.config.clone(),
+                );
+                hasher
+            } else {
+                // Otherwise, we will recompute the hash
+                let mut hasher = self.compute_file_hash(&mut file, file_path, modified_time);
+                let path_str = file_path.display().to_string();
+                hasher.append_changed_file(&path_str, FileChangeType::Modified);
+                hasher
+            }
+        } else {
+            // No cache entry at all, this is a new file
+            let mut hasher = self.compute_file_hash(&mut file, file_path, modified_time);
+            let path_str = file_path.display().to_string();
+            hasher.append_changed_file(&path_str, FileChangeType::Created);
+            hasher
+        };
 
+        Ok(hasher)
+    }
+
+    fn compute_file_hash(
+        &self,
+        file: &mut File,
+        file_path: &Path,
+        modified_time: NaiveDateTime,
+    ) -> IndexedHasher {
         let mut buffer: [u8; 4096] = [0; 4096]; // Read in 4KB chunks
 
         let mut hasher = IndexedHasher::new(file_path, "FILE", modified_time, self.config.clone());
@@ -61,8 +89,6 @@ impl FileHasher {
             hasher.append_hash(&buffer[..bytes_read]);
         }
 
-        let path_str = file_path.display().to_string();
-        hasher.append_changed_file(&path_str, FileChangeType::Modified);
-        Ok(hasher)
+        hasher
     }
 }
