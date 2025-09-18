@@ -28,13 +28,12 @@ impl AppManager {
         // order by their names.
         let indexer_config = IndexerConfig::new(app.id, self.db.clone(), true);
         let hasher = DirHasher::new(indexer_config);
-        let app_hash = hasher.dir_hash(path).await?;
-        println!("Application hash is {}", app_hash);
+        let app_hasher = hasher.dir_hash(path).await?;
+        let (hash, _) = app_hasher.finalize().await;
+        println!("Application hash is {}", hash);
 
         // Update the application with the computed hash
-        self.db
-            .update_application(&app.id, version, &app_hash)
-            .await;
+        self.db.update_application(&app.id, version, &hash).await;
 
         Ok(app)
     }

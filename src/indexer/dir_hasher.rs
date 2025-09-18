@@ -16,7 +16,7 @@ impl DirHasher {
         DirHasher { config }
     }
 
-    pub async fn dir_hash(self, file_path: &PathBuf) -> Result<String, anyhow::Error> {
+    pub async fn dir_hash(self, file_path: &PathBuf) -> Result<IndexedHasher, anyhow::Error> {
         let mut entries = Vec::new();
         let metadata = fs::metadata(file_path)?;
         if !metadata.is_dir() {
@@ -41,29 +41,18 @@ impl DirHasher {
             IndexedHasher::new(file_path, "DIRECTORY", modified_time, self.config.clone());
         for entry_path in entries {
             let metadata = fs::metadata(&entry_path)?;
-            let hex_hash = if metadata.is_dir() {
+            if metadata.is_dir() {
                 // Recursively hash the directory
                 let hasher = DirHasher::new(self.config.clone());
-                Box::pin(hasher.dir_hash(&entry_path)).await?
+                let result = Box::pin(hasher.dir_hash(&entry_path)).await?;
+                dir_hasher.extend(result).await;
             } else {
                 let hasher = FileHasher::new(self.config.clone());
-                let indexed_hasher = hasher.file_hash(&entry_path).await?;
-                let (hex_hash, _changed_files) = indexed_hasher.finalize().await;
-                hex_hash
+                let result = hasher.file_hash(&entry_path).await?;
+                dir_hasher.extend(result).await;
             };
-            dir_hasher.append_hash(hex_hash.as_bytes());
         }
 
-        let (combined_hash, changed_file_list) = dir_hasher.finalize().await;
-
-        // List changed files,
-        if !changed_file_list.is_empty() {
-            println!("Changed files:");
-            for changed_file in changed_file_list {
-                println!(" - {}", changed_file);
-            }
-        }
-
-        Ok(combined_hash)
+        Ok(dir_hasher)
     }
 }

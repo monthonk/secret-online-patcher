@@ -90,10 +90,14 @@ pub async fn check_app(name: &str, db: &PatcherDatabase) -> Result<(), anyhow::E
             let indexer_config = IndexerConfig::new(app.id, db.clone(), false);
             let hasher = DirHasher::new(indexer_config);
             let new_hash = hasher.dir_hash(&PathBuf::from(&app.install_path)).await?;
+            let (new_hash, file_changes) = new_hash.finalize().await;
             if new_hash == old_hash {
                 println!("No changes detected for application {}", app.name);
             } else {
                 println!("Changes detected for application {}!", app.name);
+                for change in file_changes {
+                    println!(" - {}", change);
+                }
                 println!("New hash: {}", new_hash);
             }
         }
@@ -126,11 +130,15 @@ pub async fn update_app(
             let indexer_config = IndexerConfig::new(app.id, db.clone(), true);
             let hasher = DirHasher::new(indexer_config);
             let new_hash = hasher.dir_hash(&PathBuf::from(&app.install_path)).await?;
+            let (new_hash, file_changes) = new_hash.finalize().await;
             if new_hash == old_hash {
                 println!("No changes detected for application {}", app.name);
                 println!("Skip updating...");
             } else {
                 println!("Changes detected for application {}!", app.name);
+                for change in file_changes {
+                    println!(" - {}", change);
+                }
                 println!("New hash: {}", new_hash);
                 println!("Updating version to {}...", version);
                 let new_version = Application {
