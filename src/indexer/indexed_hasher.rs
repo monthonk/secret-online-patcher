@@ -3,7 +3,10 @@ use std::path::{Path, PathBuf};
 use chrono::NaiveDateTime;
 use sha2::{Digest, Sha256};
 
-use crate::indexer::indexer_config::IndexerConfig;
+use crate::indexer::{
+    file_change::{FileChange, FileChangeType},
+    indexer_config::IndexerConfig,
+};
 
 // A struct representing a hasher with a list of indexed file paths.
 // If a previous index exists, the list will contain only paths that have changed since the last index.
@@ -15,7 +18,7 @@ pub struct IndexedHasher {
     pub modified_time: NaiveDateTime,
     pub hasher: Sha256,
     pub cached_hash: Option<String>,
-    pub changed_files: Vec<String>,
+    pub changed_files: Vec<FileChange>,
     pub config: IndexerConfig,
 }
 
@@ -62,8 +65,11 @@ impl IndexedHasher {
     }
 
     /// Append a changed file path to the list of changed files without updating the hash.
-    pub fn append_changed_file(&mut self, file_path: impl AsRef<str>) {
-        self.changed_files.push(file_path.as_ref().to_string());
+    pub fn append_changed_file(&mut self, file_path: impl AsRef<str>, change_type: FileChangeType) {
+        self.changed_files.push(FileChange {
+            file_path: file_path.as_ref().to_string(),
+            change_type,
+        });
     }
 
     /// Extend the list of changed files with another IndexedHasher's changed files
@@ -77,7 +83,7 @@ impl IndexedHasher {
         self.changed_files.extend(changed_files);
     }
 
-    pub async fn finalize(self) -> (String, Vec<String>) {
+    pub async fn finalize(self) -> (String, Vec<FileChange>) {
         let path_str = self.file_path.display().to_string();
         if let Some(cached_hash) = self.cached_hash {
             println!("hash: {}, entry: {} (cached)", cached_hash, path_str);

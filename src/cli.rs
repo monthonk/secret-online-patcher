@@ -96,7 +96,7 @@ pub async fn check_app(name: &str, db: &PatcherDatabase) -> Result<(), anyhow::E
             } else {
                 println!("Changes detected for application {}!", app.name);
                 for change in file_changes {
-                    println!(" - {}", change);
+                    println!(" - [{}] {}", change.change_type, change.file_path);
                 }
                 println!("New hash: {}", new_hash);
             }
@@ -137,7 +137,7 @@ pub async fn update_app(
             } else {
                 println!("Changes detected for application {}!", app.name);
                 for change in file_changes {
-                    println!(" - {}", change);
+                    println!(" - [{}] {}", change.change_type, change.file_path);
                 }
                 println!("New hash: {}", new_hash);
                 println!("Updating version to {}...", version);

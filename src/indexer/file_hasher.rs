@@ -7,7 +7,9 @@ use std::{
 use chrono::{DateTime, Utc};
 
 use crate::{
-    indexer::{indexed_hasher::IndexedHasher, indexer_config::IndexerConfig},
+    indexer::{
+        file_change::FileChangeType, indexed_hasher::IndexedHasher, indexer_config::IndexerConfig,
+    },
     storage::{file_index::FileIndex, patcher_db::PatcherDatabase},
 };
 
@@ -63,7 +65,7 @@ impl FileHasher {
         }
 
         let path_str = file_path.display().to_string();
-        hasher.append_changed_file(&path_str);
+        hasher.append_changed_file(&path_str, FileChangeType::Modified);
         Ok(hasher)
     }
 }
