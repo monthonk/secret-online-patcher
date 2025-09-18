@@ -16,6 +16,7 @@ impl DirHasher {
         DirHasher { config }
     }
 
+    // TODO: support deleted files
     pub async fn dir_hash(self, file_path: &PathBuf) -> Result<IndexedHasher, anyhow::Error> {
         let mut entries = Vec::new();
         let metadata = fs::metadata(file_path)?;
