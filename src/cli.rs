@@ -53,6 +53,16 @@ pub async fn list_apps(db: &PatcherDatabase) {
             "ID: {}, Name: {}, Version: {}, Hash: {:?}",
             app.id, app.name, app.version, app.hash_code
         );
+
+        let app_id = app.id;
+        let root = app.install_path.display().to_string();
+        let indexed_files = db.get_files_in_directory(app_id, &root).await;
+        if let Ok(files) = indexed_files {
+            println!("  Indexed files for app {}:", app.name);
+            for file in files {
+                println!("    - {} ({})", file.file_path, file.file_type);
+            }
+        }
     }
 }
 
