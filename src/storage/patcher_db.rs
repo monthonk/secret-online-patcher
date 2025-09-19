@@ -145,6 +145,28 @@ impl PatcherDatabase {
             .await
     }
 
+    pub async fn delete_file_index(
+        &self,
+        app_id: i64,
+        file_path: &str,
+    ) -> Result<bool, sqlx::Error> {
+        println!(
+            "Deleting file index: app_id={}, file_path={}",
+            app_id, file_path
+        );
+
+        let query = "
+            DELETE FROM file_index
+            WHERE app_id = ? AND file_path = ?;
+        ";
+        sqlx::query(query)
+            .bind(app_id)
+            .bind(file_path)
+            .execute(&self.db_pool)
+            .await
+            .map(|result| result.rows_affected() > 0)
+    }
+
     pub async fn get_file_index(
         &self,
         app_id: i64,
