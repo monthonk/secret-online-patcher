@@ -46,14 +46,14 @@ impl FileHasher {
                 && index.hash_code.is_some()
             {
                 let hex_hash = index.hash_code.unwrap();
-                let hasher = IndexedHasher::from_hash(
+
+                IndexedHasher::from_hash(
                     file_path,
                     "FILE",
                     modified_time,
                     &hex_hash,
                     self.config.clone(),
-                );
-                hasher
+                )
             } else {
                 // Otherwise, we will recompute the hash
                 let mut hasher = self.compute_file_hash(&mut file, file_path, modified_time);
@@ -66,16 +66,6 @@ impl FileHasher {
             let mut hasher = self.compute_file_hash(&mut file, file_path, modified_time);
             let path_str = file_path.display().to_string();
             hasher.append_changed_file(&path_str, FileChangeType::Created);
-
-            // Also delete it from the database if needed
-            if self.config.update_index {
-                self.config
-                    .db
-                    .delete_file_index(self.config.app_id, &path_str)
-                    .await
-                    .map_err(|e| anyhow::anyhow!("Error deleting old file index entry: {}", e))?;
-            }
-
             hasher
         };
 

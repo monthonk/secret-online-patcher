@@ -12,22 +12,25 @@ pub async fn last_index(app_id: i64, file_path: &Path, db: &PatcherDatabase) -> 
 pub async fn list_indexed_files(
     app_id: i64,
     parent_dir: &Path,
+    direct_children: bool,
     db: &PatcherDatabase,
 ) -> Result<Vec<FileIndex>, sqlx::Error> {
     let dir_path = parent_dir.display().to_string();
-    let files = db.get_files_in_directory(app_id, &dir_path).await?;
-    let direct_children = get_direct_children(parent_dir, &files);
-    Ok(direct_children)
+    let mut children = db.get_files_in_directory(app_id, &dir_path).await?;
+    if direct_children {
+        children = get_direct_children(parent_dir, &children);
+    }
+    Ok(children)
 }
 
 fn get_direct_children(parent: &Path, all_files: &[FileIndex]) -> Vec<FileIndex> {
     let mut children = Vec::new();
     for file in all_files {
         let file_path = Path::new(&file.file_path);
-        if let Some(parent_path) = file_path.parent() {
-            if parent_path == parent {
-                children.push(file.clone());
-            }
+        if let Some(parent_path) = file_path.parent()
+            && parent_path == parent
+        {
+            children.push(file.clone());
         }
     }
     children
