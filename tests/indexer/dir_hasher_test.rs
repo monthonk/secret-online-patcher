@@ -136,26 +136,10 @@ async fn dir_hasher_with_modified_dir(db_pool: SqlitePool) {
         "fad088f1c509fd120b2ab096178871743106368d81f992e59534f2534b04a36b"
     );
     assert_eq!(changed_files.len(), 4);
-    verify_change(
-        format!("{}/outer_file1.txt", test_dir).as_str(),
-        FileChangeType::Modified,
-        &changed_files,
-    );
-    verify_change(
-        format!("{}/subdir", test_dir).as_str(),
-        FileChangeType::Modified,
-        &changed_files,
-    );
-    verify_change(
-        format!("{}/inner_file2.txt", sub_dir).as_str(),
-        FileChangeType::Deleted,
-        &changed_files,
-    );
-    verify_change(
-        format!("{}/inner_file3.txt", sub_dir).as_str(),
-        FileChangeType::Created,
-        &changed_files,
-    );
+    verify_change(&outer_file, FileChangeType::Modified, &changed_files);
+    verify_change(&sub_dir, FileChangeType::Modified, &changed_files);
+    verify_change(&inner_file2, FileChangeType::Deleted, &changed_files);
+    verify_change(&inner_file3, FileChangeType::Created, &changed_files);
 
     // // Verify data in the database
     verify_index(app.id, &test_dir, true, Some(&hex_hash), &db).await;
@@ -189,6 +173,95 @@ async fn dir_hasher_with_modified_dir(db_pool: SqlitePool) {
         &inner_file3,
         true,
         Some("61fa2e094c8a3b784bf948e29cc7b593e21b9530eb1739744c2b5acdac7bfe50"),
+        &db,
+    )
+    .await;
+}
+
+#[sqlx::test]
+async fn dir_hasher_with_modified_nexted_dir(db_pool: SqlitePool) {
+    let test_dir = initialize_test_dir("dir_hasher_with_modified_nexted_dir");
+    let db = initialize_test_db(&db_pool).await;
+    let app = initialize_test_app(&test_dir, &db).await;
+
+    // Create a sub-directory with some files
+    let outer_file = format!("{}/outer_file1.txt", test_dir);
+    let sub_dir_level1 = format!("{}/level_1", test_dir);
+    let sub_dir_level2 = format!("{}/level_2", sub_dir_level1);
+    let inner_file = format!("{}/inner_file1.txt", sub_dir_level2);
+    fs::write(&outer_file, "Outer file 1 content").unwrap();
+    fs::create_dir_all(&sub_dir_level1).unwrap();
+    fs::create_dir_all(&sub_dir_level2).unwrap();
+    fs::write(&inner_file, "Inner file 1 content").unwrap();
+
+    let config = IndexerConfig::new(app.id, db.clone(), true);
+    let dir_hasher = DirHasher::new(config);
+    let hash_result = dir_hasher
+        .dir_hash(&Path::new(&test_dir).to_path_buf())
+        .await
+        .expect("failed to hash directory");
+    let (hex_hash, changed_files) = hash_result.finalize().await;
+    assert_eq!(hex_hash.len(), 64); // SHA-256 hash length in hex
+    assert_eq!(
+        hex_hash,
+        "688540ba952dec4d91cd29a8ba08c23e7d6ea9a607d94a4d2ca535428c8db6b1"
+    );
+    assert_eq!(changed_files.len(), 4);
+    verify_change(&outer_file, FileChangeType::Created, &changed_files);
+    verify_change(&sub_dir_level1, FileChangeType::Created, &changed_files);
+    verify_change(&sub_dir_level2, FileChangeType::Created, &changed_files);
+    verify_change(&inner_file, FileChangeType::Created, &changed_files);
+
+    // Now modify the inner file
+    fs::write(&inner_file, "Inner file 1 updated content").unwrap();
+
+    // Re-hash the directory
+    let hash_result = dir_hasher
+        .dir_hash(&Path::new(&test_dir).to_path_buf())
+        .await
+        .expect("failed to hash directory");
+    let (hex_hash, changed_files) = hash_result.finalize().await;
+    assert_eq!(hex_hash.len(), 64); // SHA-256 hash length in hex
+    assert_eq!(
+        hex_hash,
+        "c8e4aaeec3d3561463ead6b985f8595ac4dbfaf1abc8a9b9379da99839df58dc"
+    );
+    assert_eq!(changed_files.len(), 3);
+    verify_change(&sub_dir_level1, FileChangeType::Modified, &changed_files);
+    verify_change(&sub_dir_level2, FileChangeType::Modified, &changed_files);
+    verify_change(&inner_file, FileChangeType::Modified, &changed_files);
+
+    // // Verify data in the database
+    verify_index(app.id, &test_dir, true, Some(&hex_hash), &db).await;
+    verify_index(
+        app.id,
+        &outer_file,
+        true,
+        Some("9058c9405a63ce79c2235326d65e409b12026f72e41b488af2af6b1020f51c85"),
+        &db,
+    )
+    .await;
+    verify_index(
+        app.id,
+        &sub_dir_level1,
+        true,
+        Some("258e0ada9cbcbefd3dcc750976e8c7a7733791dec26d2dd0e68302531d1d91d9"),
+        &db,
+    )
+    .await;
+    verify_index(
+        app.id,
+        &sub_dir_level2,
+        true,
+        Some("ac20d880d14574071debbc507fb19832b6366141da37be8aed9c6b45a36ea95a"),
+        &db,
+    )
+    .await;
+    verify_index(
+        app.id,
+        &inner_file,
+        true,
+        Some("fbb9f86652a9ad5dae1f7824aa13923727d76e9734ac766e8596d1e53180cfcf"),
         &db,
     )
     .await;
