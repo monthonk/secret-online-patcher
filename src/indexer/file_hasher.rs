@@ -22,7 +22,7 @@ impl FileHasher {
         FileHasher { config }
     }
 
-    pub async fn file_hash(self, file_path: &PathBuf) -> Result<IndexedHasher, anyhow::Error> {
+    pub async fn file_hash(&self, file_path: &PathBuf) -> Result<IndexedHasher, anyhow::Error> {
         let mut file =
             File::open(file_path).map_err(|e| anyhow::anyhow!("Error opening file: {}", e))?;
         let metadata = file
