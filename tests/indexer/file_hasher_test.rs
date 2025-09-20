@@ -1,33 +1,17 @@
 use std::{fs, path::Path};
 
-use secret_online_patcher::{
-    indexer::{
-        file_change::FileChangeType, file_hasher::FileHasher, indexer_config::IndexerConfig,
-    },
-    storage::patcher_db::PatcherDatabase,
+use secret_online_patcher::indexer::{
+    file_change::FileChangeType, file_hasher::FileHasher, indexer_config::IndexerConfig,
 };
 use sqlx::SqlitePool;
 
+use crate::common::test_util::{initialize_test_app, initialize_test_db, initialize_test_dir};
+
 #[sqlx::test]
 async fn file_hasher_with_new_file(db_pool: SqlitePool) {
-    let db = PatcherDatabase::new(db_pool);
-    db.initialize().await;
-
-    let test_dir = "fs_tests/file_hasher_with_new_file";
-
-    // Clean up any existing test directory
-    if Path::new(test_dir).exists() {
-        fs::remove_dir_all(test_dir).unwrap();
-    }
-
-    // Create test directory
-    fs::create_dir_all(test_dir).unwrap();
-
-    // Initialise application in the database
-    let app = db
-        .add_application("Test App", "0.0.1", Path::new(test_dir))
-        .await
-        .unwrap();
+    let test_dir = initialize_test_dir("file_hasher_with_new_file");
+    let db = initialize_test_db(&db_pool).await;
+    let app = initialize_test_app(&test_dir, &db).await;
 
     // Create a test file
     let test_file = format!("{}/test_file.txt", test_dir);
@@ -52,24 +36,9 @@ async fn file_hasher_with_new_file(db_pool: SqlitePool) {
 
 #[sqlx::test]
 async fn file_hasher_with_modified_file(db_pool: SqlitePool) {
-    let db = PatcherDatabase::new(db_pool);
-    db.initialize().await;
-
-    let test_dir = "fs_tests/file_hasher_with_modified_file";
-
-    // Clean up any existing test directory
-    if Path::new(test_dir).exists() {
-        fs::remove_dir_all(test_dir).unwrap();
-    }
-
-    // Create test directory
-    fs::create_dir_all(test_dir).unwrap();
-
-    // Initialise application in the database
-    let app = db
-        .add_application("Test App", "0.0.1", Path::new(test_dir))
-        .await
-        .unwrap();
+    let test_dir = initialize_test_dir("file_hasher_with_modified_file");
+    let db = initialize_test_db(&db_pool).await;
+    let app = initialize_test_app(&test_dir, &db).await;
 
     // Create a test file
     let test_file = format!("{}/test_file.txt", test_dir);
@@ -112,27 +81,12 @@ async fn file_hasher_with_modified_file(db_pool: SqlitePool) {
 
 #[sqlx::test]
 async fn file_hasher_fail_with_non_existing_file(db_pool: SqlitePool) {
-    let db = PatcherDatabase::new(db_pool);
-    db.initialize().await;
-
-    let test_dir = "fs_tests/file_hasher_fail_with_non_existing_file";
-
-    // Clean up any existing test directory
-    if Path::new(test_dir).exists() {
-        fs::remove_dir_all(test_dir).unwrap();
-    }
-
-    // Create test directory
-    fs::create_dir_all(test_dir).unwrap();
-
-    // Initialise application in the database
-    let app = db
-        .add_application("Test App", "0.0.1", Path::new(test_dir))
-        .await
-        .unwrap();
+    let test_dir = initialize_test_dir("file_hasher_fail_with_non_existing_file");
+    let db = initialize_test_db(&db_pool).await;
+    let app = initialize_test_app(&test_dir, &db).await;
 
     // Test with a non-existing file
-    let test_file = format!("{}/non_existing.txt", test_dir);
+    let test_file = format!("{}/non_existing.txt", &test_dir);
 
     let config = IndexerConfig::new(app.id, db.clone(), true);
     let file_hasher = FileHasher::new(config);
