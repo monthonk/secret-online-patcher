@@ -89,6 +89,30 @@ async fn dir_hasher_with_new_dir(db_pool: SqlitePool) {
 }
 
 #[sqlx::test]
+async fn dir_hasher_with_empty_dir(db_pool: SqlitePool) {
+    let test_dir = initialize_test_dir("dir_hasher_with_empty_dir");
+    let db = initialize_test_db(&db_pool).await;
+    let app = initialize_test_app(&test_dir, &db).await;
+
+    let config = IndexerConfig::new(app.id, db.clone(), true);
+    let dir_hasher = DirHasher::new(config);
+    let hash_result = dir_hasher
+        .dir_hash(&Path::new(&test_dir).to_path_buf())
+        .await
+        .expect("failed to hash directory");
+    let (hex_hash, changed_files) = hash_result.finalize().await;
+    assert_eq!(hex_hash.len(), 64); // SHA-256 hash length in hex
+    assert_eq!(
+        hex_hash,
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    );
+    assert_eq!(changed_files.len(), 0);
+
+    // Verify data in the database
+    verify_index(app.id, &test_dir, true, Some(&hex_hash), &db).await;
+}
+
+#[sqlx::test]
 async fn dir_hasher_with_modified_dir(db_pool: SqlitePool) {
     let test_dir = initialize_test_dir("dir_hasher_with_modified_dir");
     let db = initialize_test_db(&db_pool).await;
@@ -179,8 +203,8 @@ async fn dir_hasher_with_modified_dir(db_pool: SqlitePool) {
 }
 
 #[sqlx::test]
-async fn dir_hasher_with_modified_nexted_dir(db_pool: SqlitePool) {
-    let test_dir = initialize_test_dir("dir_hasher_with_modified_nexted_dir");
+async fn dir_hasher_with_modified_nested_dir(db_pool: SqlitePool) {
+    let test_dir = initialize_test_dir("dir_hasher_with_modified_nested_dir");
     let db = initialize_test_db(&db_pool).await;
     let app = initialize_test_app(&test_dir, &db).await;
 
@@ -265,4 +289,75 @@ async fn dir_hasher_with_modified_nexted_dir(db_pool: SqlitePool) {
         &db,
     )
     .await;
+}
+
+#[sqlx::test]
+async fn dir_hasher_with_modified_nested_empty_dir(db_pool: SqlitePool) {
+    let test_dir = initialize_test_dir("dir_hasher_with_modified_nested_empty_dir");
+    let db = initialize_test_db(&db_pool).await;
+    let app = initialize_test_app(&test_dir, &db).await;
+
+    // Create a sub-directory with some files
+    let sub_dir_level1 = format!("{}/level_1", test_dir);
+    let sub_dir_level2 = format!("{}/level_2", sub_dir_level1);
+    let inner_file = format!("{}/inner_file1.txt", sub_dir_level2);
+    fs::create_dir_all(&sub_dir_level1).unwrap();
+    fs::create_dir_all(&sub_dir_level2).unwrap();
+    fs::write(&inner_file, "Inner file 1 content").unwrap();
+
+    let config = IndexerConfig::new(app.id, db.clone(), true);
+    let dir_hasher = DirHasher::new(config);
+    let hash_result = dir_hasher
+        .dir_hash(&Path::new(&test_dir).to_path_buf())
+        .await
+        .expect("failed to hash directory");
+    let (hex_hash, changed_files) = hash_result.finalize().await;
+    assert_eq!(hex_hash.len(), 64); // SHA-256 hash length in hex
+    assert_eq!(
+        hex_hash,
+        "35b230e403816a4c075d1dd30dc619311299688ae28136e23707992b2c3a2e69"
+    );
+    assert_eq!(changed_files.len(), 3);
+    verify_change(&sub_dir_level1, FileChangeType::Created, &changed_files);
+    verify_change(&sub_dir_level2, FileChangeType::Created, &changed_files);
+    verify_change(&inner_file, FileChangeType::Created, &changed_files);
+
+    // Now delete the inner file
+    fs::remove_file(&inner_file).unwrap();
+
+    // Re-hash the directory
+    let hash_result = dir_hasher
+        .dir_hash(&Path::new(&test_dir).to_path_buf())
+        .await
+        .expect("failed to hash directory");
+    let (hex_hash, changed_files) = hash_result.finalize().await;
+    assert_eq!(hex_hash.len(), 64); // SHA-256 hash length in hex
+    assert_eq!(
+        hex_hash,
+        "e67e72111b363d80c8124d28193926000980e1211c7986cacbd26aacc5528d48"
+    );
+    assert_eq!(changed_files.len(), 3);
+    verify_change(&sub_dir_level1, FileChangeType::Modified, &changed_files);
+    verify_change(&sub_dir_level2, FileChangeType::Modified, &changed_files);
+    verify_change(&inner_file, FileChangeType::Deleted, &changed_files);
+
+    // Verify data in the database
+    verify_index(app.id, &test_dir, true, Some(&hex_hash), &db).await;
+    verify_index(
+        app.id,
+        &sub_dir_level1,
+        true,
+        Some("cd372fb85148700fa88095e3492d3f9f5beb43e555e5ff26d95f5a6adc36f8e6"),
+        &db,
+    )
+    .await;
+    verify_index(
+        app.id,
+        &sub_dir_level2,
+        true,
+        Some("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"),
+        &db,
+    )
+    .await;
+    verify_index(app.id, &inner_file, false, None, &db).await;
 }
