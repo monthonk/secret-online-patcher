@@ -75,12 +75,14 @@ impl IndexedHasher {
     /// Extend the list of changed files with another IndexedHasher's changed files
     /// and combine their hashes.
     ///
-    /// The provided IndexedHasher is consumed in the process.
-    pub async fn extend(&mut self, other: IndexedHasher) {
+    /// The provided IndexedHasher is consumed in the process and a hexadecimal hash string
+    /// is returned.
+    pub async fn extend(&mut self, other: IndexedHasher) -> String {
         let (hex_hash, changed_files) = other.finalize().await;
 
         self.hasher.update(hex_hash.as_bytes());
         self.changed_files.extend(changed_files);
+        hex_hash
     }
 
     pub async fn finalize(self) -> (String, Vec<FileChange>) {

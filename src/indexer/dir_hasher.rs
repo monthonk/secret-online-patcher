@@ -20,7 +20,7 @@ impl DirHasher {
         DirHasher { config }
     }
 
-    pub async fn dir_hash(self, file_path: &PathBuf) -> Result<IndexedHasher, anyhow::Error> {
+    pub async fn dir_hash(&self, file_path: &PathBuf) -> Result<IndexedHasher, anyhow::Error> {
         let mut entries = Vec::new();
         let metadata = fs::metadata(file_path)?;
         if !metadata.is_dir() {
@@ -30,10 +30,9 @@ impl DirHasher {
         let modified_time = DateTime::<Utc>::from(modified_time).naive_utc();
 
         // Check if we have a cached hash for this directory to see if any files are deleted
+        let last_index = db_utils::last_index(self.config.app_id, file_path, &self.config.db).await;
         let mut previous_children = HashMap::new();
-        if let Some(_index) =
-            db_utils::last_index(self.config.app_id, file_path, &self.config.db).await
-        {
+        if let Some(_index) = &last_index {
             let previous_files =
                 db_utils::list_indexed_files(self.config.app_id, file_path, true, &self.config.db)
                     .await?;
@@ -65,14 +64,34 @@ impl DirHasher {
         for entry_path in &entries {
             let path_str = entry_path.display().to_string();
             let metadata = fs::metadata(entry_path)?;
+
+            // Find the last index entry for this path, if any
+            let last_entry =
+                db_utils::last_index(self.config.app_id, entry_path, &self.config.db).await;
             if metadata.is_dir() {
+                // Add to current children
                 current_children.insert(path_str.clone(), FileInfo::new(&path_str, "DIRECTORY"));
+
+                if last_entry.is_none() {
+                    // New directory
+                    dir_hasher.append_changed_file(&path_str, FileChangeType::Created);
+                }
+
                 // Recursively hash the directory
                 let hasher = DirHasher::new(self.config.clone());
                 let result = Box::pin(hasher.dir_hash(entry_path)).await?;
-                dir_hasher.extend(result).await;
+                let hex_hash = dir_hasher.extend(result).await;
+                if let Some(entry) = last_entry
+                    && entry.hash_code != Some(hex_hash)
+                {
+                    // Directory modified
+                    dir_hasher.append_changed_file(&path_str, FileChangeType::Modified);
+                }
             } else {
+                // Add to current children
                 current_children.insert(path_str.clone(), FileInfo::new(&path_str, "FILE"));
+
+                // Hash the file
                 let hasher = FileHasher::new(self.config.clone());
                 let result = hasher.file_hash(entry_path).await?;
                 dir_hasher.extend(result).await;
@@ -108,7 +127,6 @@ impl DirHasher {
                 dir_hasher.append_changed_file(file_path, FileChangeType::Deleted);
             }
         }
-
         Ok(dir_hasher)
     }
 }
