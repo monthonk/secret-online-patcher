@@ -5,7 +5,10 @@ use secret_online_patcher::indexer::{
 };
 use sqlx::SqlitePool;
 
-use crate::common::test_util::{initialize_test_app, initialize_test_db, initialize_test_dir};
+use crate::common::{
+    db_util::verify_index,
+    test_util::{initialize_test_app, initialize_test_db, initialize_test_dir},
+};
 
 #[sqlx::test]
 async fn file_hasher_with_new_file(db_pool: SqlitePool) {
@@ -32,6 +35,9 @@ async fn file_hasher_with_new_file(db_pool: SqlitePool) {
     assert_eq!(changed_files.len(), 1);
     assert_eq!(changed_files[0].change_type, FileChangeType::Created);
     assert_eq!(changed_files[0].file_path, test_file);
+
+    // Verify data in the database
+    verify_index(app.id, &test_file, true, Some(&hex_hash), &db).await;
 }
 
 #[sqlx::test]
@@ -77,6 +83,9 @@ async fn file_hasher_with_modified_file(db_pool: SqlitePool) {
     assert_eq!(changed_files.len(), 1);
     assert_eq!(changed_files[0].change_type, FileChangeType::Modified);
     assert_eq!(changed_files[0].file_path, test_file);
+
+    // Verify data in the database
+    verify_index(app.id, &test_file, true, Some(&hex_hash), &db).await;
 }
 
 #[sqlx::test]
@@ -101,4 +110,7 @@ async fn file_hasher_fail_with_non_existing_file(db_pool: SqlitePool) {
             .to_string()
             .contains("Error opening file")
     );
+
+    // Verify data in the database
+    verify_index(app.id, &test_file, false, None, &db).await;
 }
