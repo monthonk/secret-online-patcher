@@ -76,7 +76,7 @@ impl PatcherDatabase {
             .db_pool
             .execute(sqlx::query(query).bind(version).bind(hash_code).bind(id))
             .await
-            .inspect_err(|e| println!("Error updating application: {}", e));
+            .inspect_err(|e| tracing::info!("Error updating application: {}", e));
     }
 
     pub async fn remove_application(&self, name: &str) {
@@ -88,7 +88,7 @@ impl PatcherDatabase {
             .db_pool
             .execute(sqlx::query(query).bind(name))
             .await
-            .inspect_err(|e| println!("Error removing application: {}", e));
+            .inspect_err(|e| tracing::info!("Error removing application: {}", e));
     }
 
     pub async fn get_application(&self, name: &str) -> Result<Option<Application>, sqlx::Error> {
@@ -101,7 +101,7 @@ impl PatcherDatabase {
             .bind(name)
             .fetch_optional(&self.db_pool)
             .await
-            .inspect_err(|e| println!("Error fetching application: {}", e))
+            .inspect_err(|e| tracing::info!("Error fetching application: {}", e))
     }
 
     pub async fn list_applications(&self) -> Vec<Application> {
@@ -112,7 +112,7 @@ impl PatcherDatabase {
         sqlx::query_as(query)
             .fetch_all(&self.db_pool)
             .await
-            .inspect_err(|e| println!("Error listing applications: {e}"))
+            .inspect_err(|e| tracing::info!("Error listing applications: {e}"))
             .unwrap_or_default()
     }
 
@@ -124,9 +124,13 @@ impl PatcherDatabase {
         hash_code: &str,
         modified_time: &NaiveDateTime,
     ) -> Result<FileIndex, sqlx::Error> {
-        println!(
+        tracing::info!(
             "Upserting file index: app_id={}, file_path={}, file_type={}, hash_code={}, modified_time={}",
-            app_id, file_path, file_type, hash_code, modified_time
+            app_id,
+            file_path,
+            file_type,
+            hash_code,
+            modified_time
         );
         let query = "
             INSERT INTO file_index (app_id, file_path, file_type, hash_code, modified_time)
@@ -150,9 +154,10 @@ impl PatcherDatabase {
         app_id: i64,
         file_path: &str,
     ) -> Result<bool, sqlx::Error> {
-        println!(
+        tracing::info!(
             "Deleting file index: app_id={}, file_path={}",
-            app_id, file_path
+            app_id,
+            file_path
         );
 
         let query = "
@@ -182,7 +187,7 @@ impl PatcherDatabase {
             .bind(file_path)
             .fetch_optional(&self.db_pool)
             .await
-            .inspect_err(|e| println!("Error fetching file index: {}", e))
+            .inspect_err(|e| tracing::info!("Error fetching file index: {}", e))
     }
 
     pub async fn get_files_in_directory(
@@ -201,6 +206,6 @@ impl PatcherDatabase {
             .bind(like_pattern)
             .fetch_all(&self.db_pool)
             .await
-            .inspect_err(|e| println!("Error fetching files in directory: {}", e))
+            .inspect_err(|e| tracing::info!("Error fetching files in directory: {}", e))
     }
 }

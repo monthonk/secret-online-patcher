@@ -88,7 +88,7 @@ impl IndexedHasher {
     pub async fn finalize(self) -> (String, Vec<FileChange>) {
         let path_str = self.file_path.display().to_string();
         if let Some(cached_hash) = self.cached_hash {
-            println!("hash: {}, entry: {} (cached)", cached_hash, path_str);
+            tracing::info!("hash: {}, entry: {} (cached)", cached_hash, path_str);
             // If we have a cached hash, return it directly without recomputing,
             // and return an empty list of changed files.
             return (cached_hash, Vec::new());
@@ -97,7 +97,7 @@ impl IndexedHasher {
         let hash = self.hasher.finalize();
         // Encode the hash as a hexadecimal string
         let hex_hash = base16ct::lower::encode_string(&hash);
-        println!("hash: {}, entry: {} (recomputed)", hex_hash, &path_str);
+        tracing::info!("hash: {}, entry: {} (recomputed)", hex_hash, &path_str);
 
         // Update index if needed
         if self.config.update_index {

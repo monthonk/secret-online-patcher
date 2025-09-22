@@ -9,10 +9,14 @@ use std::{
     path::Path,
     time::{SystemTime, UNIX_EPOCH},
 };
+use tracing_subscriber::{Layer, filter, layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
+
+    // Initialize logger
+    init_logger().await;
 
     // Ensure resources directory exists
     let resources_dir = Path::new("resources");
@@ -37,7 +41,7 @@ async fn main() {
         }
         Operation::AddApp => {
             if args.app_name.is_none() || args.app_version.is_none() || args.app_path.is_none() {
-                eprintln!(
+                tracing::error!(
                     "Error: --app-name, --app-version, and --app-path are required for add-app operation."
                 );
                 return;
@@ -51,12 +55,12 @@ async fn main() {
             )
             .await
             {
-                eprintln!("Error adding application: {}", e);
+                tracing::error!("Error adding application: {}", e);
             }
         }
         Operation::RemoveApp => {
             if args.app_name.is_none() {
-                eprintln!("Error: --app-name is required for remove-app operation.");
+                tracing::error!("Error: --app-name is required for remove-app operation.");
                 return;
             }
 
@@ -64,27 +68,37 @@ async fn main() {
         }
         Operation::Check => {
             if args.app_name.is_none() {
-                eprintln!("Error: --app-name is required for check operation.");
+                tracing::error!("Error: --app-name is required for check operation.");
                 return;
             }
             // Call the function to check an app
             if let Err(e) = cli::check_app(args.app_name.as_ref().unwrap(), &patcher_db).await {
-                eprintln!("Error checking application: {}", e);
+                tracing::error!("Error checking application: {}", e);
             }
         }
         Operation::Update => {
             if args.app_name.is_none() || args.app_version.is_none() {
-                eprintln!("Error: --app-name and --app-version are required for update operation.");
+                tracing::error!(
+                    "Error: --app-name and --app-version are required for update operation."
+                );
                 return;
             }
 
             let app_name = args.app_name.as_ref().unwrap();
             let new_version = args.app_version.as_ref().unwrap();
             if let Err(e) = cli::update_app(app_name, new_version, &patcher_db).await {
-                eprintln!("Error updating application: {}", e);
+                tracing::error!("Error updating application: {}", e);
             }
         }
     }
     let end = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
-    println!("Operation took {} milliseconds", (end - start).as_millis());
+    tracing::info!("Operation took {} milliseconds", (end - start).as_millis());
+}
+
+async fn init_logger() {
+    // Enables the user to choose log level by setting RUST_LOG=<level> environment variable
+    let log_level_filter = filter::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| filter::EnvFilter::new("info"));
+    let stdout_log = tracing_subscriber::fmt::layer().with_filter(log_level_filter);
+    tracing_subscriber::registry().with(stdout_log).init();
 }

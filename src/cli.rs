@@ -49,18 +49,21 @@ pub async fn list_apps(db: &PatcherDatabase) {
     // Implementation for listing apps
     let apps = db.list_applications().await;
     for app in apps {
-        println!(
+        tracing::info!(
             "ID: {}, Name: {}, Version: {}, Hash: {:?}",
-            app.id, app.name, app.version, app.hash_code
+            app.id,
+            app.name,
+            app.version,
+            app.hash_code
         );
 
         let app_id = app.id;
         let root = app.install_path.display().to_string();
         let indexed_files = db.get_files_in_directory(app_id, &root).await;
         if let Ok(files) = indexed_files {
-            println!("  Indexed files for app {}:", app.name);
+            tracing::info!("  Indexed files for app {}:", app.name);
             for file in files {
-                println!("    - {} ({})", file.file_path, file.file_type);
+                tracing::info!("    - {} ({})", file.file_path, file.file_type);
             }
         }
     }
@@ -86,9 +89,12 @@ pub async fn check_app(name: &str, db: &PatcherDatabase) -> Result<(), anyhow::E
     let app = db.get_application(name).await?;
     match app {
         Some(app) => {
-            println!(
+            tracing::info!(
                 "ID: {}, Name: {}, Version: {}, Hash: {:?}",
-                app.id, app.name, app.version, app.hash_code
+                app.id,
+                app.name,
+                app.version,
+                app.hash_code
             );
             if app.hash_code.is_none() {
                 return Err(anyhow!(
@@ -102,13 +108,13 @@ pub async fn check_app(name: &str, db: &PatcherDatabase) -> Result<(), anyhow::E
             let new_hash = hasher.dir_hash(&PathBuf::from(&app.install_path)).await?;
             let (new_hash, file_changes) = new_hash.finalize().await;
             if new_hash == old_hash {
-                println!("No changes detected for application {}", app.name);
+                tracing::info!("No changes detected for application {}", app.name);
             } else {
-                println!("Changes detected for application {}!", app.name);
+                tracing::info!("Changes detected for application {}!", app.name);
                 for change in file_changes {
-                    println!(" - [{}] {}", change.change_type, change.file_path);
+                    tracing::info!(" - [{}] {}", change.change_type, change.file_path);
                 }
-                println!("New hash: {}", new_hash);
+                tracing::info!("New hash: {}", new_hash);
             }
         }
         None => {
@@ -126,9 +132,12 @@ pub async fn update_app(
     let app = db.get_application(name).await?;
     match app {
         Some(app) => {
-            println!(
+            tracing::info!(
                 "ID: {}, Name: {}, Current Version: {}, Hash: {:?}",
-                app.id, app.name, app.version, app.hash_code
+                app.id,
+                app.name,
+                app.version,
+                app.hash_code
             );
             if app.hash_code.is_none() {
                 return Err(anyhow!(
@@ -142,15 +151,15 @@ pub async fn update_app(
             let new_hash = hasher.dir_hash(&PathBuf::from(&app.install_path)).await?;
             let (new_hash, file_changes) = new_hash.finalize().await;
             if new_hash == old_hash {
-                println!("No changes detected for application {}", app.name);
-                println!("Skip updating...");
+                tracing::info!("No changes detected for application {}", app.name);
+                tracing::info!("Skip updating...");
             } else {
-                println!("Changes detected for application {}!", app.name);
+                tracing::info!("Changes detected for application {}!", app.name);
                 for change in file_changes {
-                    println!(" - [{}] {}", change.change_type, change.file_path);
+                    tracing::info!(" - [{}] {}", change.change_type, change.file_path);
                 }
-                println!("New hash: {}", new_hash);
-                println!("Updating version to {}...", version);
+                tracing::info!("New hash: {}", new_hash);
+                tracing::info!("Updating version to {}...", version);
                 let new_version = Application {
                     id: app.id,
                     name: app.name.clone(),

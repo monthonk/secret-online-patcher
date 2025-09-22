@@ -30,7 +30,7 @@ impl AppManager {
         let hasher = DirHasher::new(indexer_config);
         let app_hasher = hasher.dir_hash(path).await?;
         let (hash, _) = app_hasher.finalize().await;
-        println!("Application hash is {}", hash);
+        tracing::info!("Application hash is {}", hash);
 
         // Update the application with the computed hash
         self.db.update_application(&app.id, version, &hash).await;
