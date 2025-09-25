@@ -2,7 +2,8 @@ use std::path::PathBuf;
 
 use sqlx::{FromRow, Row, sqlite::SqliteRow};
 
-// Store application information
+/// Store application information
+#[derive(Clone)]
 pub struct Application {
     pub id: i64,
     pub name: String,
