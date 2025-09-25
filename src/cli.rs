@@ -1,10 +1,15 @@
-use std::path::PathBuf;
+use std::{
+    fs::{self, File},
+    os::unix::fs::PermissionsExt,
+    path::PathBuf,
+};
 
 use anyhow::anyhow;
 use clap::{Parser, ValueEnum};
+use zip::{ZipWriter, write::SimpleFileOptions};
 
 use crate::{
-    indexer::{dir_hasher::DirHasher, indexer_config::IndexerConfig},
+    indexer::{dir_hasher::DirHasher, file_change::FileChangeType, indexer_config::IndexerConfig},
     service::app_manager::AppManager,
     storage::{application_data::Application, patcher_db::PatcherDatabase},
 };
@@ -111,10 +116,36 @@ pub async fn check_app(name: &str, db: &PatcherDatabase) -> Result<(), anyhow::E
                 tracing::info!("No changes detected for application {}", app.name);
             } else {
                 tracing::info!("Changes detected for application {}!", app.name);
-                for change in file_changes {
+                for change in &file_changes {
                     tracing::info!(" - [{}] {}", change.change_type, change.file_path);
                 }
                 tracing::info!("New hash: {}", new_hash);
+
+                // Create zip file from the file changes
+                let sanitized_app_name = app.name.replace(" ", "_");
+                let zip_path = format!("{}_{}_update.zip", sanitized_app_name, app.version);
+                let zip_file = File::create(&zip_path)?;
+
+                let mut zip_writer = ZipWriter::new(zip_file);
+                for change in &file_changes {
+                    // Skip deleted files
+                    if change.change_type == FileChangeType::Deleted {
+                        continue;
+                    }
+
+                    let file_path = PathBuf::from(&change.file_path);
+                    let file_metadata = fs::metadata(&file_path)?;
+                    if file_path.is_file() {
+                        let options = SimpleFileOptions::default()
+                            .compression_method(zip::CompressionMethod::Deflated)
+                            .unix_permissions(file_metadata.permissions().mode());
+                        zip_writer.start_file(change.file_path.clone(), options)?;
+                        let mut f = File::open(&file_path)?;
+                        std::io::copy(&mut f, &mut zip_writer)?;
+                    }
+                }
+                zip_writer.finish()?;
+                tracing::info!("Update package created at: {}", zip_path);
             }
         }
         None => {
