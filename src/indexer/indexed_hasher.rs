@@ -65,9 +65,15 @@ impl IndexedHasher {
     }
 
     /// Append a changed file path to the list of changed files without updating the hash.
-    pub fn append_changed_file(&mut self, file_path: impl AsRef<str>, change_type: FileChangeType) {
+    pub fn append_changed_file(
+        &mut self,
+        file_path: impl AsRef<str>,
+        file_type: impl AsRef<str>,
+        change_type: FileChangeType,
+    ) {
         self.changed_files.push(FileChange {
             file_path: file_path.as_ref().to_string(),
+            file_type: file_type.as_ref().to_string(),
             change_type,
         });
     }

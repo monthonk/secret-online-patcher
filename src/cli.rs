@@ -151,9 +151,13 @@ pub async fn check_app(name: &str, db: &PatcherDatabase) -> Result<(), anyhow::E
                 for change in &file_changes {
                     // Add change to the patch database
                     let change_type = change.change_type.to_string().to_uppercase();
-                    // TODO: Handle directories
                     patch_db
-                        .add_file_change(patch.id, &change.file_path, "FILE", &change_type)
+                        .add_file_change(
+                            patch.id,
+                            &change.file_path,
+                            &change.file_type,
+                            &change_type,
+                        )
                         .await?;
 
                     // Skip deleted files

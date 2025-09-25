@@ -9,6 +9,7 @@ pub enum FileChangeType {
 
 pub struct FileChange {
     pub file_path: String,
+    pub file_type: String,
     pub change_type: FileChangeType,
 }
 

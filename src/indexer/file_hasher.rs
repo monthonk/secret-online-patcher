@@ -58,14 +58,14 @@ impl FileHasher {
                 // Otherwise, we will recompute the hash
                 let mut hasher = self.compute_file_hash(&mut file, file_path, modified_time);
                 let path_str = file_path.display().to_string();
-                hasher.append_changed_file(&path_str, FileChangeType::Modified);
+                hasher.append_changed_file(&path_str, "FILE", FileChangeType::Modified);
                 hasher
             }
         } else {
             // No cache entry at all, this is a new file
             let mut hasher = self.compute_file_hash(&mut file, file_path, modified_time);
             let path_str = file_path.display().to_string();
-            hasher.append_changed_file(&path_str, FileChangeType::Created);
+            hasher.append_changed_file(&path_str, "FILE", FileChangeType::Created);
             hasher
         };
 

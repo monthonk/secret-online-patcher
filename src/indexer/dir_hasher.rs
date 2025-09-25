@@ -74,7 +74,7 @@ impl DirHasher {
 
                 if last_entry.is_none() {
                     // New directory
-                    dir_hasher.append_changed_file(&path_str, FileChangeType::Created);
+                    dir_hasher.append_changed_file(&path_str, "DIRECTORY", FileChangeType::Created);
                 }
 
                 // Recursively hash the directory
@@ -85,7 +85,11 @@ impl DirHasher {
                     && entry.hash_code != Some(hex_hash)
                 {
                     // Directory modified
-                    dir_hasher.append_changed_file(&path_str, FileChangeType::Modified);
+                    dir_hasher.append_changed_file(
+                        &path_str,
+                        "DIRECTORY",
+                        FileChangeType::Modified,
+                    );
                 }
             } else {
                 // Add to current children
@@ -116,7 +120,11 @@ impl DirHasher {
                             delete_file_index(self.config.app_id, &file.file_path, &self.config.db)
                                 .await?;
                         }
-                        dir_hasher.append_changed_file(file.file_path, FileChangeType::Deleted);
+                        dir_hasher.append_changed_file(
+                            file.file_path,
+                            file.file_type,
+                            FileChangeType::Deleted,
+                        );
                     }
                 }
 
@@ -124,7 +132,11 @@ impl DirHasher {
                 if self.config.update_index {
                     delete_file_index(self.config.app_id, &file_path, &self.config.db).await?;
                 }
-                dir_hasher.append_changed_file(file_path, FileChangeType::Deleted);
+                dir_hasher.append_changed_file(
+                    file_path,
+                    file_info.file_type,
+                    FileChangeType::Deleted,
+                );
             }
         }
         Ok(dir_hasher)
