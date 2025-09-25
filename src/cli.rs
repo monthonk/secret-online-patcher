@@ -1,7 +1,7 @@
 use std::{
     fs::{self, File},
     os::unix::fs::PermissionsExt,
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 use anyhow::anyhow;
@@ -10,7 +10,11 @@ use sqlx::SqlitePool;
 use zip::{ZipWriter, write::SimpleFileOptions};
 
 use crate::{
-    indexer::{dir_hasher::DirHasher, file_change::FileChangeType, indexer_config::IndexerConfig},
+    indexer::{
+        dir_hasher::DirHasher,
+        file_change::{FileChange, FileChangeType},
+        indexer_config::IndexerConfig,
+    },
     service::app_manager::AppManager,
     storage::{
         application_data::Application, patch_db::PatchDatabase, patcher_db::PatcherDatabase,
@@ -123,66 +127,6 @@ pub async fn check_app(name: &str, db: &PatcherDatabase) -> Result<(), anyhow::E
                     tracing::info!(" - [{}] {}", change.change_type, change.file_path);
                 }
                 tracing::info!("New hash: {}", new_hash);
-
-                // Create database file for the patch, this file will be added to the zip
-                // TODO: use prod directory
-                let patch_db_dir = "fs_tests/patches";
-                fs::create_dir_all(patch_db_dir)?;
-                let db_path = format!("{}/patch.db", patch_db_dir);
-                let _ = fs::remove_file(&db_path);
-                let db_conn = format!("sqlite:{}?mode=rwc", db_path);
-                let db_pool = SqlitePool::connect(&db_conn).await.unwrap();
-                let patch_db = PatchDatabase::new(db_pool);
-                patch_db.initialize().await;
-                let patch = patch_db
-                    .create_patch(&app.name, &app.version, &app.version)
-                    .await?;
-
-                // Create zip file from the file changes
-                let sanitized_app_name = app.name.replace(" ", "_");
-                let zip_path = format!(
-                    "{}/{}_{}_update.zip",
-                    patch_db_dir, sanitized_app_name, app.version
-                );
-                let _ = fs::remove_file(&zip_path);
-                let zip_file = File::create(&zip_path)?;
-
-                let mut zip_writer = ZipWriter::new(zip_file);
-                for change in &file_changes {
-                    // Add change to the patch database
-                    let change_type = change.change_type.to_string().to_uppercase();
-                    patch_db
-                        .add_file_change(
-                            patch.id,
-                            &change.file_path,
-                            &change.file_type,
-                            &change_type,
-                        )
-                        .await?;
-
-                    // Skip deleted files
-                    if change.change_type == FileChangeType::Deleted {
-                        continue;
-                    }
-
-                    let file_path = PathBuf::from(&change.file_path);
-                    let file_metadata = fs::metadata(&file_path)?;
-                    if file_path.is_file() {
-                        let options = SimpleFileOptions::default()
-                            .compression_method(zip::CompressionMethod::Deflated)
-                            .unix_permissions(file_metadata.permissions().mode());
-                        zip_writer.start_file(change.file_path.clone(), options)?;
-                        let mut f = File::open(&file_path)?;
-                        std::io::copy(&mut f, &mut zip_writer)?;
-                    }
-                }
-                // Ensure the database connection is closed before finishing the zip
-                drop(patch_db);
-                // Then add the database file to the zip
-                let mut db_file = File::open(db_path)?;
-                std::io::copy(&mut db_file, &mut zip_writer)?;
-                zip_writer.finish()?;
-                tracing::info!("Update package created at: {}", zip_path);
             }
         }
         None => {
@@ -223,7 +167,7 @@ pub async fn update_app(
                 tracing::info!("Skip updating...");
             } else {
                 tracing::info!("Changes detected for application {}!", app.name);
-                for change in file_changes {
+                for change in &file_changes {
                     tracing::info!(" - [{}] {}", change.change_type, change.file_path);
                 }
                 tracing::info!("New hash: {}", new_hash);
@@ -241,11 +185,79 @@ pub async fn update_app(
                     new_version.hash_code.as_ref().unwrap(),
                 )
                 .await;
+
+                // Create the zip package for the update
+                // TODO: use prod directory
+                let out_dir = PathBuf::from("fs_tests/patches");
+                create_zip_package(&app, &version, &file_changes, &out_dir).await?;
             }
         }
         None => {
             return Err(anyhow!("Application not found"));
         }
     }
+    Ok(())
+}
+
+async fn create_zip_package(
+    app: &Application,
+    new_version: &str,
+    file_changes: &[FileChange],
+    out_dir: &Path,
+) -> Result<(), anyhow::Error> {
+    // Create database file for the patch, this file will be added to the zip
+    fs::create_dir_all(out_dir)?;
+    let db_path = format!("{}/patch.db", out_dir.display());
+    let _ = fs::remove_file(&db_path);
+    let db_conn = format!("sqlite:{}?mode=rwc", db_path);
+    let db_pool = SqlitePool::connect(&db_conn).await.unwrap();
+    let patch_db = PatchDatabase::new(db_pool);
+    patch_db.initialize().await;
+    let patch = patch_db
+        .create_patch(&app.name, &app.version, new_version)
+        .await?;
+
+    // Create zip file from the file changes
+    let sanitized_app_name = app.name.replace(" ", "_");
+    let zip_path = format!(
+        "{}/{}_{}_update.zip",
+        out_dir.display(),
+        sanitized_app_name,
+        new_version
+    );
+    let _ = fs::remove_file(&zip_path);
+    let zip_file = File::create(&zip_path)?;
+
+    let mut zip_writer = ZipWriter::new(zip_file);
+    for change in file_changes {
+        // Add change to the patch database
+        let change_type = change.change_type.to_string().to_uppercase();
+        patch_db
+            .add_file_change(patch.id, &change.file_path, &change.file_type, &change_type)
+            .await?;
+
+        // Skip deleted files
+        if change.change_type == FileChangeType::Deleted {
+            continue;
+        }
+
+        let file_path = PathBuf::from(&change.file_path);
+        let file_metadata = fs::metadata(&file_path)?;
+        if file_path.is_file() {
+            let options = SimpleFileOptions::default()
+                .compression_method(zip::CompressionMethod::Deflated)
+                .unix_permissions(file_metadata.permissions().mode());
+            zip_writer.start_file(change.file_path.clone(), options)?;
+            let mut f = File::open(&file_path)?;
+            std::io::copy(&mut f, &mut zip_writer)?;
+        }
+    }
+    // Ensure the database connection is closed before finishing the zip
+    drop(patch_db);
+    // Then add the database file to the zip
+    let mut db_file = File::open(db_path)?;
+    std::io::copy(&mut db_file, &mut zip_writer)?;
+    zip_writer.finish()?;
+    tracing::info!("Update package created at: {}", zip_path);
     Ok(())
 }
