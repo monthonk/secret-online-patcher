@@ -147,6 +147,11 @@ async fn dir_hasher_with_modified_dir(db_pool: SqlitePool) {
     fs::write(&outer_file, "Outer file 1 updated content").unwrap();
     fs::remove_file(&inner_file2).unwrap();
     fs::write(&inner_file3, "Inner file 3 content").unwrap();
+    // Also create a new directory
+    let new_subdir = format!("{}/new_subdir", test_dir);
+    let inner_file4 = format!("{}/inner_file4.txt", new_subdir);
+    fs::create_dir_all(&new_subdir).unwrap();
+    fs::write(&inner_file4, "Inner file 4 content").unwrap();
 
     // Re-hash the directory
     let hash_result = dir_hasher
@@ -157,13 +162,16 @@ async fn dir_hasher_with_modified_dir(db_pool: SqlitePool) {
     assert_eq!(hex_hash.len(), 64); // SHA-256 hash length in hex
     assert_eq!(
         hex_hash,
-        "fad088f1c509fd120b2ab096178871743106368d81f992e59534f2534b04a36b"
+        "dd00581998351b5602b046662cc4f9a32d2c9846d4134dfb981e9055b0184785"
     );
-    assert_eq!(changed_files.len(), 4);
+    assert_eq!(changed_files.len(), 6);
     verify_change(&outer_file, FileChangeType::Modified, &changed_files);
     verify_change(&sub_dir, FileChangeType::Modified, &changed_files);
     verify_change(&inner_file2, FileChangeType::Deleted, &changed_files);
     verify_change(&inner_file3, FileChangeType::Created, &changed_files);
+    // New directory should be marked as created
+    verify_change(&new_subdir, FileChangeType::Created, &changed_files);
+    verify_change(&inner_file4, FileChangeType::Created, &changed_files);
 
     // // Verify data in the database
     verify_index(app.id, &test_dir, true, Some(&hex_hash), &db).await;
@@ -197,6 +205,22 @@ async fn dir_hasher_with_modified_dir(db_pool: SqlitePool) {
         &inner_file3,
         true,
         Some("61fa2e094c8a3b784bf948e29cc7b593e21b9530eb1739744c2b5acdac7bfe50"),
+        &db,
+    )
+    .await;
+    verify_index(
+        app.id,
+        &new_subdir,
+        true,
+        Some("3ec975592ead4b395aad08b0fbddde83eda0d4f3fc2a279ae4b0a47345a0d7a5"),
+        &db,
+    )
+    .await;
+    verify_index(
+        app.id,
+        &inner_file4,
+        true,
+        Some("9269bdedc30b96f85e120131f6baf470a8be992582172142edeaef8ef47e2afa"),
         &db,
     )
     .await;
@@ -238,6 +262,11 @@ async fn dir_hasher_with_modified_nested_dir(db_pool: SqlitePool) {
 
     // Now modify the inner file
     fs::write(&inner_file, "Inner file 1 updated content").unwrap();
+    // Also create a new directory
+    let sub_dir_level3 = format!("{}/level_3", sub_dir_level2);
+    let inner_file2 = format!("{}/inner_file2.txt", sub_dir_level3);
+    fs::create_dir_all(&sub_dir_level3).unwrap();
+    fs::write(&inner_file2, "Inner file 2 content").unwrap();
 
     // Re-hash the directory
     let hash_result = dir_hasher
@@ -248,12 +277,15 @@ async fn dir_hasher_with_modified_nested_dir(db_pool: SqlitePool) {
     assert_eq!(hex_hash.len(), 64); // SHA-256 hash length in hex
     assert_eq!(
         hex_hash,
-        "c8e4aaeec3d3561463ead6b985f8595ac4dbfaf1abc8a9b9379da99839df58dc"
+        "baf9ebe6389e9b7d222c44277100b9521d5caf42a04fea2bd0aa8f34f154dc21"
     );
-    assert_eq!(changed_files.len(), 3);
+    assert_eq!(changed_files.len(), 5);
     verify_change(&sub_dir_level1, FileChangeType::Modified, &changed_files);
     verify_change(&sub_dir_level2, FileChangeType::Modified, &changed_files);
     verify_change(&inner_file, FileChangeType::Modified, &changed_files);
+    // New directory should be marked as created
+    verify_change(&sub_dir_level3, FileChangeType::Created, &changed_files);
+    verify_change(&inner_file2, FileChangeType::Created, &changed_files);
 
     // // Verify data in the database
     verify_index(app.id, &test_dir, true, Some(&hex_hash), &db).await;
@@ -269,7 +301,7 @@ async fn dir_hasher_with_modified_nested_dir(db_pool: SqlitePool) {
         app.id,
         &sub_dir_level1,
         true,
-        Some("258e0ada9cbcbefd3dcc750976e8c7a7733791dec26d2dd0e68302531d1d91d9"),
+        Some("1d38ab6eb27461f90ef7b0298eb6fb98c2cec9c23c879646b90553ac4db15808"),
         &db,
     )
     .await;
@@ -277,7 +309,7 @@ async fn dir_hasher_with_modified_nested_dir(db_pool: SqlitePool) {
         app.id,
         &sub_dir_level2,
         true,
-        Some("ac20d880d14574071debbc507fb19832b6366141da37be8aed9c6b45a36ea95a"),
+        Some("a3411127799065ee3b76db6ca685e4a701f377d5563a324c86af7df0c2df2197"),
         &db,
     )
     .await;
@@ -286,6 +318,22 @@ async fn dir_hasher_with_modified_nested_dir(db_pool: SqlitePool) {
         &inner_file,
         true,
         Some("fbb9f86652a9ad5dae1f7824aa13923727d76e9734ac766e8596d1e53180cfcf"),
+        &db,
+    )
+    .await;
+    verify_index(
+        app.id,
+        &sub_dir_level3,
+        true,
+        Some("d55f9557d85969b84af7aa2f9a7e64e280e8fbdf2e6961b0e4b1176e578afbba"),
+        &db,
+    )
+    .await;
+    verify_index(
+        app.id,
+        &inner_file2,
+        true,
+        Some("7685580f5e71563c3d1831f9fe1d4da6f4ee42e76b3bdfb1b90d84a9bb739744"),
         &db,
     )
     .await;
