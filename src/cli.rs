@@ -219,12 +219,8 @@ async fn create_zip_package(
 
     // Create zip file from the file changes
     let sanitized_app_name = app.name.replace(" ", "_");
-    let zip_path = format!(
-        "{}/{}_{}_update.zip",
-        out_dir.display(),
-        sanitized_app_name,
-        new_version
-    );
+    let package_name = format!("{}_{}_update", sanitized_app_name, new_version);
+    let zip_path = format!("{}/{}.zip", out_dir.display(), package_name);
     let _ = fs::remove_file(&zip_path);
     let zip_file = File::create(&zip_path)?;
 
@@ -247,7 +243,9 @@ async fn create_zip_package(
             let options = SimpleFileOptions::default()
                 .compression_method(zip::CompressionMethod::Deflated)
                 .unix_permissions(file_metadata.permissions().mode());
-            zip_writer.start_file(change.file_path.clone(), options)?;
+            let trimmed_path = file_path.strip_prefix(&app.install_path)?;
+            let path_in_zip = format!("{}/{}", package_name, trimmed_path.display());
+            zip_writer.start_file(path_in_zip, options)?;
             let mut f = File::open(&file_path)?;
             std::io::copy(&mut f, &mut zip_writer)?;
         }
@@ -255,6 +253,10 @@ async fn create_zip_package(
     // Ensure the database connection is closed before finishing the zip
     drop(patch_db);
     // Then add the database file to the zip
+    zip_writer.start_file(
+        format!("{}/patch.db", package_name),
+        SimpleFileOptions::default(),
+    )?;
     let mut db_file = File::open(db_path)?;
     std::io::copy(&mut db_file, &mut zip_writer)?;
     zip_writer.finish()?;
